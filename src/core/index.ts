@@ -1,3 +1,7 @@
-// Public exports from core go here.
+// Public exports from core layer.
 // Keep core framework-free (no Nest imports).
-export {};
+
+export * from "./types";
+export * from "./config";
+export * from "./mask";
+export * from "./diff";
