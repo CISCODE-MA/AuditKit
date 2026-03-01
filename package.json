@@ -1,6 +1,7 @@
 {
   "name": "@ciscode/audit-kit",
   "version": "0.0.0",
+  "type": "module",
   "private": false,
   "description": "A NestJS module for auditing and logging changes to entities using Zod schemas.",
   "author": "CisCode",
@@ -9,7 +10,6 @@
     "url": "git+https://github.com/CISCODE-MA/AuditKit.git"
   },
   "license": "MIT",
-  "type": "module",
   "sideEffects": false,
   "files": [
     "dist"
