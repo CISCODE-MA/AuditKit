@@ -1,0 +1,74 @@
+# Source code
+src/
+test/
+__tests__/
+**/jest.config.ts
+**/vitest.config.ts
+**/*.spec.ts
+**/*.test.ts
+
+# Configuration files
+.env
+.env.example
+.env.*.local
+tsconfig.json
+tsconfig.*.json
+eslint.config.js
+eslint.config.mjs
+jest.config.ts
+prettier.config.js
+.prettierrc
+.prettierignore
+postcss.config.cjs
+tailwind.config.js
+
+# Build/tooling
+build/
+coverage/
+dist/
+.cache/
+.next/
+out/
+.turbo/
+
+# Development
+node_modules/
+.node-version
+.nvmrc
+
+# Documentation
+docs/
+examples/
+CONTRIBUTING.md
+CHANGELOG.md
+SECURITY.md
+
+# Git & CI/CD
+.git/
+.gitignore
+.github/
+.husky/
+.gitlab-ci.yml
+azure-pipelines.yml
+.devcontainer/
+
+# System
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.editorconfig
+
+# Secrets
+*.key
+*.pem
+*.pfx
+.env.production.local
+secrets.json
+private.key
