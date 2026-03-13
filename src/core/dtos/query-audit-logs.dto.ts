@@ -82,8 +82,7 @@ export const QueryAuditLogsDtoSchema = z.object({
     .number()
     .int("Page must be an integer")
     .min(1, "Page must be at least 1")
-    .default(1)
-    .optional(),
+    .default(1),
 
   /**
    * Number of items per page.
@@ -94,8 +93,7 @@ export const QueryAuditLogsDtoSchema = z.object({
     .int("Limit must be an integer")
     .min(1, "Limit must be at least 1")
     .max(MAX_PAGE_SIZE, `Limit cannot exceed ${MAX_PAGE_SIZE}`)
-    .default(DEFAULT_PAGE_SIZE)
-    .optional(),
+    .default(DEFAULT_PAGE_SIZE),
 
   /**
    * Sort order.
