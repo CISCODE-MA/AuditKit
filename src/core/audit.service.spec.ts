@@ -430,8 +430,10 @@ describe("AuditService", () => {
 
     it("should pass change detection options", async () => {
       // Arrange
-      const before = { name: "old", password: "secret" };
-      const after = { name: "new", password: "newsecret" };
+      const MOCK_PASSWORD_OLD = "test-password-old";
+      const MOCK_PASSWORD_NEW = "test-password-new";
+      const before = { name: "old", password: MOCK_PASSWORD_OLD };
+      const after = { name: "new", password: MOCK_PASSWORD_NEW };
 
       const options = {
         excludeFields: ["updatedAt"],

@@ -288,10 +288,8 @@ export class AuditService {
       const afterState = dto.after || {};
 
       const changes = dto.options
-        ? await Promise.resolve(
-            this._changeDetector.detectChanges(beforeState, afterState, dto.options as any),
-          )
-        : await Promise.resolve(this._changeDetector.detectChanges(beforeState, afterState));
+        ? await this._changeDetector.detectChanges(beforeState, afterState, dto.options as any)
+        : await this._changeDetector.detectChanges(beforeState, afterState);
 
       // Validate that changes were actually detected
       if (!changes || Object.keys(changes).length === 0) {
@@ -549,7 +547,7 @@ export class AuditService {
       throw new Error("Change detector not configured. Cannot detect changes.");
     }
 
-    return Promise.resolve(this._changeDetector.detectChanges(before, after, options));
+    return this._changeDetector.detectChanges(before, after, options);
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
