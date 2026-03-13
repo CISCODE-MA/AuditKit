@@ -69,6 +69,16 @@ export enum AuditActionType {
   CUSTOM = "CUSTOM",
 }
 
+/**
+ * Branded string type for custom (non-enum) audit actions.
+ *
+ * This preserves `AuditActionType` autocomplete/type-safety while still
+ * allowing consumers to opt in to custom action identifiers.
+ */
+export type CustomAuditAction = string & {
+  readonly __customAuditActionBrand: unique symbol;
+};
+
 // ============================================================================
 // VALUE OBJECTS - Embedded Domain Concepts
 // ============================================================================
@@ -187,7 +197,7 @@ export interface AuditLog {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** The type of action performed */
-  action: AuditActionType | string; // Allow custom actions as strings
+  action: AuditActionType | CustomAuditAction; // Allow custom actions while preserving enum type-safety
 
   /** Optional human-readable description of the action */
   actionDescription?: string;
