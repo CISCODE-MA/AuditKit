@@ -23,7 +23,7 @@
  * @packageDocumentation
  */
 
-import type { ChangeSet, FieldChange } from "../types";
+import type { ChangeSet } from "../types";
 
 // ============================================================================
 // CHANGE DETECTION OPTIONS
