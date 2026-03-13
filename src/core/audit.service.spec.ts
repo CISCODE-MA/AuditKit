@@ -122,6 +122,12 @@ const validActor: AuditLog["actor"] = {
 };
 
 /**
+ * Test IP addresses (not real production IPs)
+ */
+const MOCK_IP_ADDRESS_1 = "192.168.1.100";
+const MOCK_IP_ADDRESS_2 = "192.168.1.1";
+
+/**
  * Valid audit log DTO for testing
  */
 const validDto: CreateAuditLogDto = {
@@ -266,7 +272,7 @@ describe("AuditService", () => {
       const fullDto: CreateAuditLogDto = {
         ...validDto,
         metadata: { customField: "value" },
-        ipAddress: "192.168.1.100",
+        ipAddress: MOCK_IP_ADDRESS_1,
         userAgent: "Mozilla/5.0",
         requestId: "req-abc",
         sessionId: "sess-xyz",
@@ -287,7 +293,7 @@ describe("AuditService", () => {
           status: { from: "pending", to: "shipped" },
         },
         metadata: { customField: "value" },
-        ipAddress: "192.168.1.100",
+        ipAddress: MOCK_IP_ADDRESS_1,
         userAgent: "Mozilla/5.0",
         requestId: "req-abc",
         sessionId: "sess-xyz",
@@ -303,7 +309,7 @@ describe("AuditService", () => {
       expect(mockRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           metadata: { customField: "value" },
-          ipAddress: "192.168.1.100",
+          ipAddress: MOCK_IP_ADDRESS_1,
           userAgent: "Mozilla/5.0",
           requestId: "req-abc",
           sessionId: "sess-xyz",
@@ -669,7 +675,7 @@ describe("AuditService", () => {
         resourceId: "doc-789",
         startDate: new Date("2026-03-01"),
         endDate: new Date("2026-03-31"),
-        ipAddress: "192.168.1.1",
+        ipAddress: MOCK_IP_ADDRESS_2,
         search: "sensitive",
         page: 1,
         limit: 50,
@@ -684,7 +690,7 @@ describe("AuditService", () => {
           action: AuditActionType.ACCESS,
           resourceType: "document",
           resourceId: "doc-789",
-          ipAddress: "192.168.1.1",
+          ipAddress: MOCK_IP_ADDRESS_2,
           search: "sensitive",
         }),
       );
