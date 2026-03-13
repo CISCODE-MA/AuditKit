@@ -436,19 +436,17 @@ describe("AuditService", () => {
 
     it("should pass change detection options", async () => {
       // Arrange
-      const MOCK_PASSWORD_OLD = "test-password-old";
-      const MOCK_PASSWORD_NEW = "test-password-new";
-      const before = { name: "old", password: MOCK_PASSWORD_OLD };
-      const after = { name: "new", password: MOCK_PASSWORD_NEW };
+      const before = { name: "old", ssn: "old-value" };
+      const after = { name: "new", ssn: "new-value" };
 
       const options = {
         excludeFields: ["updatedAt"],
-        maskFields: ["password"],
+        maskFields: ["ssn"],
       };
 
       mockChangeDetector.detectChanges.mockReturnValue({
         name: { from: "old", to: "new" },
-        password: { from: "***", to: "***" },
+        ssn: { from: "***", to: "***" },
       });
 
       mockRepository.create.mockResolvedValue(expectedAuditLog);
@@ -728,7 +726,7 @@ describe("AuditService", () => {
       // Arrange
       const options = {
         excludeFields: ["updatedAt"],
-        maskFields: ["password"],
+        maskFields: ["ssn"],
         maskStrategy: "full" as const,
       };
 

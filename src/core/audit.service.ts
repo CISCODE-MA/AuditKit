@@ -525,13 +525,13 @@ export class AuditService {
    *
    * @example With field masking
    * ```typescript
-   * const oldUser = { username: 'john', password: 'old_hash', role: 'user' };
-   * const newUser = { username: 'john', password: 'new_hash', role: 'admin' };
+   * const oldUser = { username: 'john', apiKey: 'key_old123', role: 'user' };
+   * const newUser = { username: 'john', apiKey: 'key_new456', role: 'admin' };
    *
    * const changes = await service.detectChanges(oldUser, newUser, {
-   *   maskFields: ['password']
+   *   maskFields: ['apiKey']
    * });
-   * // { password: { from: '***', to: '***' }, role: { from: 'user', to: 'admin' } }
+   * // { apiKey: { from: '***', to: '***' }, role: { from: 'user', to: 'admin' } }
    * ```
    */
   async detectChanges(
