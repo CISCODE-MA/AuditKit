@@ -96,13 +96,13 @@ export class AuditNotFoundError extends Error {
     // Call parent Error constructor
     super(message || defaultMessage);
 
-    // Store additional properties
-    this.auditLogId = auditLogId;
-    this.context = context;
+    // Store additional properties (only if defined)
+    if (auditLogId !== undefined) this.auditLogId = auditLogId;
+    if (context !== undefined) this.context = context;
 
     // Maintain proper stack trace in V8 engines (Chrome, Node.js)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, AuditNotFoundError);
+    if ("captureStackTrace" in Error) {
+      (Error as any).captureStackTrace(this, AuditNotFoundError);
     }
 
     // Set prototype explicitly for proper instanceof checks

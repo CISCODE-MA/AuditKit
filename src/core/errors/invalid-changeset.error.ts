@@ -119,12 +119,12 @@ export class InvalidChangeSetError extends Error {
 
     // Store additional properties
     this.changeSet = changeSet;
-    this.fieldName = fieldName;
-    this.context = context;
+    if (fieldName !== undefined) this.fieldName = fieldName;
+    if (context !== undefined) this.context = context;
 
     // Maintain proper stack trace in V8 engines (Chrome, Node.js)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, InvalidChangeSetError);
+    if ("captureStackTrace" in Error) {
+      (Error as any).captureStackTrace(this, InvalidChangeSetError);
     }
 
     // Set prototype explicitly for proper instanceof checks

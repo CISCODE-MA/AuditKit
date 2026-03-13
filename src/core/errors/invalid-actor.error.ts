@@ -104,11 +104,11 @@ export class InvalidActorError extends Error {
 
     // Store additional properties
     this.actor = actor;
-    this.validationErrors = validationErrors;
+    if (validationErrors !== undefined) this.validationErrors = validationErrors;
 
     // Maintain proper stack trace in V8 engines (Chrome, Node.js)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, InvalidActorError);
+    if ("captureStackTrace" in Error) {
+      (Error as any).captureStackTrace(this, InvalidActorError);
     }
 
     // Set prototype explicitly for proper instanceof checks
