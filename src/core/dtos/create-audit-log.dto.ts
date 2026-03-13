@@ -165,7 +165,11 @@ export const CreateAuditLogDtoSchema = z.object({
    * IP address from which the action was performed.
    * Validated as IPv4 or IPv6.
    */
-  ipAddress: z.string().ip({ version: "v4" }).or(z.string().ip({ version: "v6" })).optional(),
+  ipAddress: z
+    .string()
+    .ip({ version: "v4" })
+    .or(z.string().ip({ version: "v6" }))
+    .optional(),
 
   /** User agent string (browser, API client, etc.) */
   userAgent: z.string().optional(),
