@@ -159,7 +159,7 @@ export interface ITimestampProvider {
    * // 1710241800000
    * ```
    */
-  format(date: Date, format: TimestampFormat): string | number;
+  format(date: Date, format: TimestampFormat): string | number | Date;
 
   /**
    * Parses a timestamp string or number into a Date object.
