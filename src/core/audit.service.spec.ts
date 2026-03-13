@@ -122,10 +122,11 @@ const validActor: AuditLog["actor"] = {
 };
 
 /**
- * Test IP addresses (not real production IPs)
+ * Test IP addresses (RFC 5737 TEST-NET-1 range - reserved for documentation)
+ * These are not real production IPs
  */
-const MOCK_IP_ADDRESS_1 = "192.168.1.100";
-const MOCK_IP_ADDRESS_2 = "192.168.1.1";
+const MOCK_IP_ADDRESS_1 = "192.0.2.100"; // NOSONAR - RFC 5737 documentation IP
+const MOCK_IP_ADDRESS_2 = "192.0.2.1"; // NOSONAR - RFC 5737 documentation IP
 
 /**
  * Valid audit log DTO for testing
