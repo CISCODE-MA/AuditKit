@@ -22,6 +22,9 @@
  * @packageDocumentation
  */
 
+// ESLint disable for enum values (they're declarations, not usage)
+/* eslint-disable no-unused-vars */
+
 // ============================================================================
 // ENUMS - Constrained String Values
 // ============================================================================
@@ -347,8 +350,7 @@ export interface AuditLogFilters {
  */
 export function isAuditActionType(value: unknown): value is AuditActionType {
   return (
-    typeof value === "string" &&
-    Object.values(AuditActionType).includes(value as AuditActionType)
+    typeof value === "string" && Object.values(AuditActionType).includes(value as AuditActionType)
   );
 }
 
@@ -359,8 +361,5 @@ export function isAuditActionType(value: unknown): value is AuditActionType {
  * @returns True if value is a valid ActorType
  */
 export function isActorType(value: unknown): value is ActorType {
-  return (
-    typeof value === "string" &&
-    Object.values(ActorType).includes(value as ActorType)
-  );
+  return typeof value === "string" && Object.values(ActorType).includes(value as ActorType);
 }

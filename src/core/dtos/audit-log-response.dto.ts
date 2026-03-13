@@ -175,9 +175,7 @@ export const PaginatedAuditLogsResponseSchema = z.object({
 /**
  * TypeScript type for paginated audit log responses.
  */
-export type PaginatedAuditLogsResponse = z.infer<
-  typeof PaginatedAuditLogsResponseSchema
->;
+export type PaginatedAuditLogsResponse = z.infer<typeof PaginatedAuditLogsResponseSchema>;
 
 // ============================================================================
 // OPERATION RESULT SCHEMAS

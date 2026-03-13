@@ -23,7 +23,10 @@
  * @packageDocumentation
  */
 
-// ============================================================================
+// ESLint disable for interface method parameters (they're part of the contract, not actual code)
+/* eslint-disable no-unused-vars */
+
+// ===========================================================================
 // ID GENERATION OPTIONS
 // ============================================================================
 
@@ -131,7 +134,7 @@ export interface IIdGenerator {
    * // 'V1StGXR8_Z' (shorter)
    * ```
    */
-  generate(options?: IdGenerationOptions): string;
+  generate(_options?: IdGenerationOptions): string;
 
   /**
    * Generates multiple unique identifiers in one call.
@@ -149,7 +152,7 @@ export interface IIdGenerator {
    * // ['audit_V1St...', 'audit_X2Ry...', ... (100 IDs)]
    * ```
    */
-  generateBatch(count: number, options?: IdGenerationOptions): string[];
+  generateBatch(_count: number, _options?: IdGenerationOptions): string[];
 
   /**
    * Validates if a string is a valid ID format.
@@ -175,7 +178,7 @@ export interface IIdGenerator {
    * // false (empty string)
    * ```
    */
-  isValid(id: string): boolean;
+  isValid(_id: string): boolean;
 
   /**
    * Extracts metadata from an ID if the generator encodes it.
@@ -207,7 +210,7 @@ export interface IIdGenerator {
    * // null (random IDs don't encode metadata)
    * ```
    */
-  extractMetadata?(id: string): Record<string, unknown> | null;
+  extractMetadata?(_id: string): Record<string, unknown> | null;
 
   /**
    * Returns information about the generator implementation.

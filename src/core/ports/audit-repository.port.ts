@@ -24,14 +24,12 @@
  * @packageDocumentation
  */
 
-import type {
-  AuditLog,
-  AuditLogFilters,
-  PageOptions,
-  PageResult,
-} from "../types";
+import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../types";
 
-// ============================================================================
+// ESLint disable for interface method parameters (they're part of the contract, not actual code)
+/* eslint-disable no-unused-vars */
+
+// ===========================================================================
 // MAIN REPOSITORY PORT
 // ============================================================================
 
@@ -83,7 +81,7 @@ export interface IAuditLogRepository {
    * const saved = await repository.create(auditLog);
    * ```
    */
-  create(log: AuditLog): Promise<AuditLog>;
+  create(_log: AuditLog): Promise<AuditLog>;
 
   // ─────────────────────────────────────────────────────────────────────────
   // READ OPERATIONS - Single Entity Retrieval
@@ -106,7 +104,7 @@ export interface IAuditLogRepository {
    * }
    * ```
    */
-  findById(id: string): Promise<AuditLog | null>;
+  findById(_id: string): Promise<AuditLog | null>;
 
   // ─────────────────────────────────────────────────────────────────────────
   // READ OPERATIONS - List/Collection Retrieval
@@ -135,10 +133,7 @@ export interface IAuditLogRepository {
    * });
    * ```
    */
-  findByActor(
-    actorId: string,
-    filters?: Partial<AuditLogFilters>,
-  ): Promise<AuditLog[]>;
+  findByActor(_actorId: string, _filters?: Partial<AuditLogFilters>): Promise<AuditLog[]>;
 
   /**
    * Finds all audit logs for a specific resource.
@@ -164,9 +159,9 @@ export interface IAuditLogRepository {
    * ```
    */
   findByResource(
-    resourceType: string,
-    resourceId: string,
-    filters?: Partial<AuditLogFilters>,
+    _resourceType: string,
+    _resourceId: string,
+    _filters?: Partial<AuditLogFilters>,
   ): Promise<AuditLog[]>;
 
   /**
@@ -195,9 +190,7 @@ export interface IAuditLogRepository {
    * console.log(`Found ${result.total} total, showing ${result.data.length}`);
    * ```
    */
-  query(
-    filters: Partial<AuditLogFilters> & Partial<PageOptions>,
-  ): Promise<PageResult<AuditLog>>;
+  query(_filters: Partial<AuditLogFilters> & Partial<PageOptions>): Promise<PageResult<AuditLog>>;
 
   // ─────────────────────────────────────────────────────────────────────────
   // READ OPERATIONS - Aggregation/Statistics
@@ -227,7 +220,7 @@ export interface IAuditLogRepository {
    * }
    * ```
    */
-  count(filters?: Partial<AuditLogFilters>): Promise<number>;
+  count(_filters?: Partial<AuditLogFilters>): Promise<number>;
 
   /**
    * Checks if any audit log exists matching the filters.
@@ -249,7 +242,7 @@ export interface IAuditLogRepository {
    * });
    * ```
    */
-  exists(filters: Partial<AuditLogFilters>): Promise<boolean>;
+  exists(_filters: Partial<AuditLogFilters>): Promise<boolean>;
 
   // ─────────────────────────────────────────────────────────────────────────
   // OPTIONAL OPERATIONS - Advanced Features
@@ -278,7 +271,7 @@ export interface IAuditLogRepository {
    * const deleted = await repository.deleteOlderThan?.(sevenYearsAgo);
    * ```
    */
-  deleteOlderThan?(beforeDate: Date): Promise<number>;
+  deleteOlderThan?(_beforeDate: Date): Promise<number>;
 
   /**
    * Archives audit logs to long-term storage.
@@ -290,5 +283,5 @@ export interface IAuditLogRepository {
    * @returns Number of audit logs archived
    * @throws Error if archival fails or not supported
    */
-  archiveOlderThan?(beforeDate: Date): Promise<number>;
+  archiveOlderThan?(_beforeDate: Date): Promise<number>;
 }

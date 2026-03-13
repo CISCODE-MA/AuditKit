@@ -222,10 +222,7 @@ export class InvalidChangeSetError extends Error {
    * // Error: Field "email" has invalid change structure: Missing "to" property
    * ```
    */
-  public static malformedField(
-    fieldName: string,
-    reason: string,
-  ): InvalidChangeSetError {
+  public static malformedField(fieldName: string, reason: string): InvalidChangeSetError {
     return new InvalidChangeSetError(
       `Field "${fieldName}" has invalid change structure: ${reason}`,
       undefined,

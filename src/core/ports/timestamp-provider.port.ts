@@ -29,6 +29,9 @@
  * @packageDocumentation
  */
 
+// ESLint disable for interface method parameters (they're part of the contract, not actual code)
+/* eslint-disable no-unused-vars */
+
 // ============================================================================
 // TIMESTAMP FORMAT OPTIONS
 // ============================================================================
@@ -134,7 +137,7 @@ export interface ITimestampProvider {
    * // '2026-03-12T05:30:00.000-05:00'
    * ```
    */
-  now(options?: TimestampOptions): Date | string | number;
+  now(_options?: TimestampOptions): Date | string | number;
 
   /**
    * Converts a Date object to the specified format.
@@ -185,7 +188,7 @@ export interface ITimestampProvider {
    * // Date('2026-03-12T10:30:00.000Z')
    * ```
    */
-  parse(timestamp: string | number): Date;
+  parse(_timestamp: string | number): Date;
 
   /**
    * Validates if a timestamp is well-formed and in the past.
@@ -218,7 +221,7 @@ export interface ITimestampProvider {
    * // false
    * ```
    */
-  isValid(timestamp: string | number | Date, allowFuture?: boolean): boolean;
+  isValid(_timestamp: string | number | Date, _allowFuture?: boolean): boolean;
 
   /**
    * Returns the start of the day for the given date (00:00:00).
@@ -238,7 +241,7 @@ export interface ITimestampProvider {
    * // Date('2026-03-15T00:00:00.000Z')
    * ```
    */
-  startOfDay(date?: Date, timezone?: TimezoneOption): Date;
+  startOfDay(_date?: Date, _timezone?: TimezoneOption): Date;
 
   /**
    * Returns the end of the day for the given date (23:59:59.999).
@@ -255,7 +258,7 @@ export interface ITimestampProvider {
    * // Date('2026-03-12T23:59:59.999Z')
    * ```
    */
-  endOfDay(date?: Date, timezone?: TimezoneOption): Date;
+  endOfDay(_date?: Date, _timezone?: TimezoneOption): Date;
 
   /**
    * Calculates the difference between two timestamps.
@@ -283,9 +286,9 @@ export interface ITimestampProvider {
    * ```
    */
   diff(
-    from: Date,
-    to: Date,
-    unit?: "milliseconds" | "seconds" | "minutes" | "hours" | "days",
+    _from: Date,
+    _to: Date,
+    _unit?: "milliseconds" | "seconds" | "minutes" | "hours" | "days",
   ): number;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -307,7 +310,7 @@ export interface ITimestampProvider {
    * provider.now(); // Still returns 2026-03-12T10:00:00Z
    * ```
    */
-  freeze?(timestamp: Date): void;
+  freeze?(_timestamp: Date): void;
 
   /**
    * Advances frozen time by a duration (for testing).
@@ -323,7 +326,7 @@ export interface ITimestampProvider {
    * provider.now(); // Returns 2026-03-12T10:01:00Z
    * ```
    */
-  advance?(duration: number): void;
+  advance?(_duration: number): void;
 
   /**
    * Unfreezes time, returning to real system time (for testing).

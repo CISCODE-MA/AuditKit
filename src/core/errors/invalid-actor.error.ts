@@ -98,11 +98,7 @@ export class InvalidActorError extends Error {
    * // (validation details available in error.validationErrors)
    * ```
    */
-  constructor(
-    message: string,
-    actor?: unknown,
-    validationErrors?: Record<string, string>,
-  ) {
+  constructor(message: string, actor?: unknown, validationErrors?: Record<string, string>) {
     // Call parent Error constructor
     super(message);
 
@@ -206,8 +202,6 @@ export class InvalidActorError extends Error {
    */
   public static missingFields(missingFields: string[]): InvalidActorError {
     const fieldList = missingFields.join(", ");
-    return new InvalidActorError(
-      `Actor is missing required fields: ${fieldList}`,
-    );
+    return new InvalidActorError(`Actor is missing required fields: ${fieldList}`);
   }
 }

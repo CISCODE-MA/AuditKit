@@ -106,9 +106,7 @@ export const QueryAuditLogsDtoSchema = z.object({
       (val) => {
         // Strip leading "-" for descending sort
         const field = val.startsWith("-") ? val.slice(1) : val;
-        return ALLOWED_SORT_FIELDS.includes(
-          field as (typeof ALLOWED_SORT_FIELDS)[number],
-        );
+        return ALLOWED_SORT_FIELDS.includes(field as (typeof ALLOWED_SORT_FIELDS)[number]);
       },
       {
         message: `Sort field must be one of: ${ALLOWED_SORT_FIELDS.join(", ")}`,
@@ -165,12 +163,7 @@ export const QueryAuditLogsDtoSchema = z.object({
    * Example: Get all CREATE or UPDATE actions
    */
   actions: z
-    .array(
-      z.union([
-        z.nativeEnum(AuditActionType),
-        z.string().min(1, "Action cannot be empty"),
-      ]),
-    )
+    .array(z.union([z.nativeEnum(AuditActionType), z.string().min(1, "Action cannot be empty")]))
     .optional(),
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -285,20 +278,19 @@ export type QueryAuditLogsDto = z.infer<typeof QueryAuditLogsDtoSchema>;
  *
  * This extended schema adds cross-field validation.
  */
-export const QueryAuditLogsDtoWithDateValidationSchema =
-  QueryAuditLogsDtoSchema.refine(
-    (data) => {
-      // If both dates are provided, startDate must be <= endDate
-      if (data.startDate && data.endDate) {
-        return data.startDate <= data.endDate;
-      }
-      return true; // Valid if only one or neither date is provided
-    },
-    {
-      message: "Start date must be before or equal to end date",
-      path: ["startDate"], // Error will be attached to startDate field
-    },
-  );
+export const QueryAuditLogsDtoWithDateValidationSchema = QueryAuditLogsDtoSchema.refine(
+  (data) => {
+    // If both dates are provided, startDate must be <= endDate
+    if (data.startDate && data.endDate) {
+      return data.startDate <= data.endDate;
+    }
+    return true; // Valid if only one or neither date is provided
+  },
+  {
+    message: "Start date must be before or equal to end date",
+    path: ["startDate"], // Error will be attached to startDate field
+  },
+);
 
 /**
  * TypeScript type for query DTO with date validation.

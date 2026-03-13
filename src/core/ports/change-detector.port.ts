@@ -25,7 +25,10 @@
 
 import type { ChangeSet } from "../types";
 
-// ============================================================================
+// ESLint disable for interface method parameters (they're part of the contract, not actual code)
+/* eslint-disable no-unused-vars */
+
+// ===========================================================================
 // CHANGE DETECTION OPTIONS
 // ============================================================================
 
@@ -88,10 +91,7 @@ export interface ChangeDetectionOptions {
    * }
    * ```
    */
-  customComparators?: Record<
-    string,
-    (a: unknown, b: unknown) => boolean
-  >;
+  customComparators?: Record<string, (_a: unknown, _b: unknown) => boolean>;
 }
 
 // ============================================================================
@@ -175,9 +175,9 @@ export interface IChangeDetector {
    * ```
    */
   detectChanges<T extends Record<string, unknown>>(
-    before: T,
-    after: T,
-    options?: ChangeDetectionOptions,
+    _before: T,
+    _after: T,
+    _options?: ChangeDetectionOptions,
   ): Promise<ChangeSet> | ChangeSet;
 
   /**
@@ -206,7 +206,7 @@ export interface IChangeDetector {
    * // true
    * ```
    */
-  hasChanged(before: unknown, after: unknown, fieldName?: string): boolean;
+  hasChanged(_before: unknown, _after: unknown, _fieldName?: string): boolean;
 
   /**
    * Applies masking to a field value.
@@ -230,7 +230,7 @@ export interface IChangeDetector {
    * // 'a3f1d...8e2' (SHA-256 hash)
    * ```
    */
-  maskValue(value: unknown, strategy?: "full" | "partial" | "hash"): string;
+  maskValue(_value: unknown, _strategy?: "full" | "partial" | "hash"): string;
 
   /**
    * Formats a ChangeSet for human-readable output.
@@ -252,7 +252,7 @@ export interface IChangeDetector {
    * // "Changed: email (old@example.com → new@example.com), status (pending → active)"
    * ```
    */
-  formatChanges(changes: ChangeSet): string;
+  formatChanges(_changes: ChangeSet): string;
 }
 
 // ============================================================================
@@ -264,11 +264,11 @@ export interface IChangeDetector {
  *
  * Takes two values and returns true if they are considered equal.
  */
-export type ComparatorFunction = (a: unknown, b: unknown) => boolean;
+export type ComparatorFunction = (_a: unknown, _b: unknown) => boolean;
 
 /**
  * Type for a masking function.
  *
  * Takes a value and returns the masked version.
  */
-export type MaskingFunction = (value: unknown) => string;
+export type MaskingFunction = (_value: unknown) => string;

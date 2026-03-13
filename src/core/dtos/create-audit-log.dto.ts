@@ -236,6 +236,4 @@ export const CreateAuditLogWithChangesSchema = CreateAuditLogDtoSchema.omit({
 /**
  * TypeScript type for audit log creation with auto change detection.
  */
-export type CreateAuditLogWithChanges = z.infer<
-  typeof CreateAuditLogWithChangesSchema
->;
+export type CreateAuditLogWithChanges = z.infer<typeof CreateAuditLogWithChangesSchema>;

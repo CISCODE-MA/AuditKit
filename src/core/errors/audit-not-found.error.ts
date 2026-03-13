@@ -87,11 +87,7 @@ export class AuditNotFoundError extends Error {
    * // (context available in error.context)
    * ```
    */
-  constructor(
-    auditLogId?: string,
-    message?: string,
-    context?: Record<string, unknown>,
-  ) {
+  constructor(auditLogId?: string, message?: string, context?: Record<string, unknown>) {
     // Generate default message if not provided
     const defaultMessage = auditLogId
       ? `Audit log with ID "${auditLogId}" was not found`

@@ -29,9 +29,7 @@
 // REPOSITORY PORT - Data Persistence
 // ============================================================================
 
-export {
-  type IAuditLogRepository,
-} from "./audit-repository.port";
+export { type IAuditLogRepository } from "./audit-repository.port";
 
 // ============================================================================
 // CHANGE DETECTOR PORT - Change Tracking
