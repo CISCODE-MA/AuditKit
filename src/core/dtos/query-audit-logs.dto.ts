@@ -78,11 +78,7 @@ export const QueryAuditLogsDtoSchema = z.object({
    * Page number (1-indexed).
    * Default: 1
    */
-  page: z
-    .number()
-    .int("Page must be an integer")
-    .min(1, "Page must be at least 1")
-    .default(1),
+  page: z.number().int("Page must be an integer").min(1, "Page must be at least 1").default(1),
 
   /**
    * Number of items per page.
