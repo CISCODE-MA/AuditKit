@@ -231,6 +231,16 @@ export const CreateAuditLogWithChangesSchema = CreateAuditLogDtoSchema.omit({
 
   /** The entity state after the change */
   after: AfterStateSchema.optional(),
+
+  /** Options for change detection (e.g., fields to exclude or mask) */
+  options: z
+    .object({
+      excludeFields: z.array(z.string()).optional(),
+      maskFields: z.array(z.string()).optional(),
+      maskStrategy: z.enum(["full", "partial", "custom"]).optional(),
+      deepCompare: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 /**
