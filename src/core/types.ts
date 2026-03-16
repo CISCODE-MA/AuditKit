@@ -316,6 +316,9 @@ export interface AuditLogFilters {
   /** Filter by action type */
   action?: AuditActionType | string;
 
+  /** Filter by multiple actions (OR condition) */
+  actions?: (AuditActionType | string)[];
+
   /** Filter by resource type */
   resourceType?: string;
 
@@ -330,6 +333,12 @@ export interface AuditLogFilters {
 
   /** Filter by IP address */
   ipAddress?: string;
+
+  /** Filter by request ID */
+  requestId?: string;
+
+  /** Filter by session ID */
+  sessionId?: string;
 
   /** Free-text search across multiple fields */
   search?: string;
