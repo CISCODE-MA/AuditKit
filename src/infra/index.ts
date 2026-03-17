@@ -7,11 +7,13 @@
  *
  * Components:
  * - Repositories: Persistence implementations
- * - Senders: (Future) Channel delivery implementations
- * - Providers: (Future) Utility implementations
+ * - Providers: Utility implementations (ID generation, timestamp, change detection)
  *
  * @packageDocumentation
  */
 
 // Repository implementations
 export * from "./repositories";
+
+// Utility providers
+export * from "./providers";
