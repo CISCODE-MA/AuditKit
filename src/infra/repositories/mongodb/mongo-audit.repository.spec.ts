@@ -65,14 +65,20 @@ describe("MongoAuditRepository", () => {
   });
 
   beforeEach(() => {
-    // Create mock model with all necessary methods
-    mockModel = {
-      create: jest.fn(),
-      findById: jest.fn(),
-      find: jest.fn(),
-      countDocuments: jest.fn(),
-      deleteMany: jest.fn(),
-    } as unknown as jest.Mocked<Model<AuditLogDocument>>;
+    // Create a mock constructor that returns a document with save method
+    const MockDocument = jest.fn().mockImplementation((data: any) => ({
+      ...data,
+      save: jest.fn().mockResolvedValue({ _id: data.id, ...data }),
+      toObject: jest.fn().mockReturnValue({ _id: data.id, ...data }),
+    }));
+
+    // Create mock model as a constructor function with static methods
+    mockModel = MockDocument as any;
+    mockModel.create = jest.fn();
+    mockModel.findOne = jest.fn();
+    mockModel.find = jest.fn();
+    mockModel.countDocuments = jest.fn();
+    mockModel.deleteMany = jest.fn();
 
     repository = new MongoAuditRepository(mockModel);
   });
@@ -150,7 +156,7 @@ describe("MongoAuditRepository", () => {
   describe("findById", () => {
     it("should return log when it exists", async () => {
       const log = createMockLog();
-      mockModel.findById.mockReturnValue({
+      mockModel.findOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({ _id: log.id, ...log }),
         }),
@@ -162,11 +168,11 @@ describe("MongoAuditRepository", () => {
         id: log.id,
         action: log.action,
       });
-      expect(mockModel.findById).toHaveBeenCalledWith(log.id);
+      expect(mockModel.findOne).toHaveBeenCalledWith({ id: log.id });
     });
 
     it("should return null when log does not exist", async () => {
-      mockModel.findById.mockReturnValue({
+      mockModel.findOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue(null),
         }),
@@ -179,7 +185,7 @@ describe("MongoAuditRepository", () => {
 
     it("should transform _id to id", async () => {
       const log = createMockLog();
-      mockModel.findById.mockReturnValue({
+      mockModel.findOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({ _id: log.id, ...log }),
         }),
@@ -307,7 +313,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({});
 
@@ -323,7 +329,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({ action: AuditActionType.CREATE });
 
@@ -339,7 +345,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({ actions: [AuditActionType.CREATE, AuditActionType.UPDATE] });
 
@@ -357,7 +363,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({ actorId: "user-1" });
 
@@ -373,7 +379,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       const startDate = new Date("2026-03-01");
       const endDate = new Date("2026-03-31");
@@ -394,7 +400,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       const startDate = new Date("2026-03-01");
 
@@ -414,7 +420,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({});
 
@@ -431,7 +437,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({ limit: 50, page: 2 });
 
@@ -448,7 +454,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({});
 
@@ -464,7 +470,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       await repository.query({ sort: "timestamp" });
 
@@ -480,7 +486,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(150 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(150) } as any);
 
       const result = await repository.query({ limit: 50, page: 1 });
 
@@ -499,7 +505,7 @@ describe("MongoAuditRepository", () => {
         exec: jest.fn().mockResolvedValue([]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(25 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(25) } as any);
 
       const result = await repository.query({ limit: 50, page: 1 });
 
@@ -509,7 +515,7 @@ describe("MongoAuditRepository", () => {
 
   describe("count", () => {
     it("should count all documents without filters", async () => {
-      mockModel.countDocuments.mockResolvedValue(42 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(42) } as any);
 
       const count = await repository.count();
 
@@ -518,7 +524,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should count with filters", async () => {
-      mockModel.countDocuments.mockResolvedValue(10 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(10) } as any);
 
       const count = await repository.count({ action: AuditActionType.CREATE });
 
@@ -529,7 +535,7 @@ describe("MongoAuditRepository", () => {
 
   describe("exists", () => {
     it("should return true when count > 0", async () => {
-      mockModel.countDocuments.mockResolvedValue(1 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) } as any);
 
       const exists = await repository.exists({ action: AuditActionType.CREATE });
 
@@ -537,7 +543,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should return false when count = 0", async () => {
-      mockModel.countDocuments.mockResolvedValue(0 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) } as any);
 
       const exists = await repository.exists({ action: "DELETE" });
 
@@ -567,7 +573,7 @@ describe("MongoAuditRepository", () => {
   describe("document transformation", () => {
     it("should transform _id to id", async () => {
       const log = createMockLog();
-      mockModel.findById.mockReturnValue({
+      mockModel.findOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({ _id: log.id, timestamp: log.timestamp }),
         }),
@@ -580,7 +586,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should handle null document", async () => {
-      mockModel.findById.mockReturnValue({
+      mockModel.findOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue(null),
         }),
@@ -603,7 +609,7 @@ describe("MongoAuditRepository", () => {
         ]),
       };
       mockModel.find.mockReturnValue(mockFind as any);
-      mockModel.countDocuments.mockResolvedValue(2 as any);
+      mockModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(2) } as any);
 
       const result = await repository.query({});
 

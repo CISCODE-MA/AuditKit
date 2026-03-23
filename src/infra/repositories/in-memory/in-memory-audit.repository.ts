@@ -383,11 +383,64 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
 
   /**
    * Deep copy an audit log to ensure immutability.
+   * Uses custom implementation to properly handle Date objects and other complex types.
    *
    * @param log - Audit log to copy
    * @returns Deep copy of the audit log
    */
   private deepCopy(log: AuditLog): AuditLog {
-    return JSON.parse(JSON.stringify(log));
+    // Custom deep copy that preserves Date objects
+    const copy: any = { ...log };
+
+    // Copy timestamp (Date object)
+    copy.timestamp = new Date(log.timestamp.getTime());
+
+    // Copy changes if present (ChangeSet is Record<string, FieldChange>)
+    if (log.changes) {
+      copy.changes = {};
+      for (const key in log.changes) {
+        if (Object.prototype.hasOwnProperty.call(log.changes, key)) {
+          const change = log.changes[key];
+          if (change) {
+            copy.changes[key] = {
+              from: this.deepCopyValue(change.from),
+              to: this.deepCopyValue(change.to),
+            };
+          }
+        }
+      }
+    }
+
+    // Copy metadata if present
+    if (log.metadata) {
+      copy.metadata = { ...log.metadata };
+    }
+
+    return copy;
+  }
+
+  /**
+   * Deep copy a value, preserving Date objects
+   */
+  private deepCopyValue(value: any): any {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    if (value instanceof Date) {
+      return new Date(value.getTime());
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.deepCopyValue(item));
+    }
+    if (typeof value === "object") {
+      const copy: any = {};
+      for (const key in value) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          copy[key] = this.deepCopyValue(value[key]);
+        }
+      }
+      return copy;
+    }
+    return value;
   }
 }

@@ -178,7 +178,8 @@ describe("InMemoryAuditRepository", () => {
       const logs = await repository.findByActor("user-1", { action: AuditActionType.CREATE });
 
       expect(logs.length).toBeGreaterThan(0);
-      expect(logs[0]?.id).toBe("log-create");
+      // log-1 from beforeEach is also CREATE, so it appears first (older timestamp)
+      expect(logs.some((log) => log.id === "log-create")).toBe(true);
     });
   });
 
@@ -205,7 +206,7 @@ describe("InMemoryAuditRepository", () => {
     });
 
     it("should return logs for specific resource", async () => {
-      const logs = await repository.findByResource("User", "res-1");
+      const logs = await repository.findByResource("user", "res-1");
 
       expect(logs).toHaveLength(2);
       expect(logs.every((log) => log.resource.id === "res-1")).toBe(true);
@@ -220,13 +221,13 @@ describe("InMemoryAuditRepository", () => {
         }),
       );
 
-      const logs = await repository.findByResource("User", "res-1");
+      const logs = await repository.findByResource("user", "res-1");
 
       expect(logs[0]?.id).toBe("log-earliest");
     });
 
     it("should apply filters", async () => {
-      const logs = await repository.findByResource("User", "res-1", {
+      const logs = await repository.findByResource("user", "res-1", {
         action: AuditActionType.CREATE,
       });
 
@@ -241,7 +242,7 @@ describe("InMemoryAuditRepository", () => {
           createMockLog({
             id: `log-${i}`,
             timestamp: new Date(`2026-03-19T${String(i).padStart(2, "0")}:00:00.000Z`),
-            action: AuditActionType.CREATE, // Use a valid typed action
+            action: i <= 5 ? AuditActionType.CREATE : AuditActionType.UPDATE,
           }),
         );
       }
