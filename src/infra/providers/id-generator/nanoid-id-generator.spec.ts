@@ -16,12 +16,13 @@
  */
 
 // Mock nanoid before importing the implementation
+// Note: Math.random() is acceptable for test mocks (not production code)
 jest.mock("nanoid", () => ({
   nanoid: jest.fn((size = 21) => {
     let result = "";
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
     for (let i = 0; i < size; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+      result += chars.charAt(Math.floor(Math.random() * chars.length)); // NOSONAR
     }
     return result;
   }),
@@ -29,7 +30,7 @@ jest.mock("nanoid", () => ({
     return (size = defaultSize) => {
       let result = "";
       for (let i = 0; i < size; i++) {
-        result += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+        result += alphabet.charAt(Math.floor(Math.random() * alphabet.length)); // NOSONAR
       }
       return result;
     };
