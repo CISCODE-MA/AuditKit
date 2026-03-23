@@ -271,8 +271,9 @@ describe("AuditKit Integration Tests", () => {
   });
 
   describe("Error scenarios", () => {
+    // Skipped: Runtime enum validation not yet implemented
+    // Tracking: https://github.com/CISCODE-MA/AuditKit/issues/TBD
     it.skip("should handle invalid input", async () => {
-      // TODO: Implement runtime validation for enum types
       await expect(
         auditService.log({
           action: "INVALID" as any,

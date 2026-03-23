@@ -24,7 +24,9 @@ import { ActorType, AuditActionType } from "../../../core/types";
 import type { AuditLogDocument } from "./audit-log.schema";
 import { MongoAuditRepository } from "./mongo-audit.repository";
 
-// TODO: Fix MongoDB repository test mocks - needs proper Mongoose Model constructor mocking
+// Skipped: MongoDB repository test mocks need proper Mongoose Model constructor patterns
+// Current mock setup doesn't properly simulate Mongoose Model constructor behavior
+// Tracking: https://github.com/CISCODE-MA/AuditKit/issues/TBD (Task AK-007)
 describe.skip("MongoAuditRepository", () => {
   let repository: MongoAuditRepository;
   let mockModel: jest.Mocked<Model<AuditLogDocument>>;
@@ -117,10 +119,10 @@ describe.skip("MongoAuditRepository", () => {
           name: { from: "Old", to: "New" },
         },
       });
-      mockModel.create.mockResolvedValue([createMockDocument(log) as any]);
+      mockModel.create.mockResolvedValue([createMockDocument(log)]);
 
       await repository.create(log);
-      mockModel.create.mockResolvedValue([createMockDocument(log) as any]);
+      mockModel.create.mockResolvedValue([createMockDocument(log)]);
 
       await repository.create(log);
 
@@ -135,7 +137,7 @@ describe.skip("MongoAuditRepository", () => {
       const log = createMockLog({
         metadata: { correlationId: "corr-1" },
       });
-      mockModel.create.mockResolvedValue([createMockDocument(log) as any]);
+      mockModel.create.mockResolvedValue([createMockDocument(log)]);
 
       await repository.create(log);
 

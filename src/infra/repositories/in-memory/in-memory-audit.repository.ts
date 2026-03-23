@@ -427,7 +427,7 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
       return value;
     }
     if (value instanceof Date) {
-      return new Date(value.getTime());
+      return new Date(value);
     }
     if (Array.isArray(value)) {
       return value.map((item) => this.deepCopyValue(item));

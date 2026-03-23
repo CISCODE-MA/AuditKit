@@ -17,20 +17,18 @@
 
 // Mock nanoid before importing the implementation
 jest.mock("nanoid", () => ({
-  nanoid: jest.fn((size?: number) => {
-    const length = size || 21;
+  nanoid: jest.fn((size = 21) => {
     let result = "";
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < size; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
   }),
-  customAlphabet: jest.fn((alphabet: string, defaultSize?: number) => {
-    return (size?: number) => {
-      const length = size || defaultSize || 21;
+  customAlphabet: jest.fn((alphabet: string, defaultSize = 21) => {
+    return (size = defaultSize) => {
       let result = "";
-      for (let i = 0; i < length; i++) {
+      for (let i = 0; i < size; i++) {
         result += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
       }
       return result;

@@ -34,7 +34,9 @@ import {
 import type { AuditKitModuleOptions, AuditKitModuleOptionsFactory } from "./interfaces";
 import { AuditKitModule } from "./module";
 
-// TODO: Fix module provider wiring tests - needs proper Test module setup
+// Skipped: Module provider wiring tests need proper NestJS Test module setup
+// These tests require mocking the entire NestJS dependency injection container
+// Tracking: https://github.com/CISCODE-MA/AuditKit/issues/TBD (Task AK-008)
 describe.skip("AuditKitModule", () => {
   describe("register()", () => {
     it("should be defined", () => {
@@ -242,6 +244,7 @@ describe.skip("AuditKitModule", () => {
           AuditKitModule.registerAsync({
             imports: [
               {
+                // Empty test module for dependency injection testing
                 module: class ConfigModule {},
                 providers: [ConfigService],
                 exports: [ConfigService],
