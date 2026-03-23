@@ -399,7 +399,7 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
     if (log.changes) {
       copy.changes = {};
       for (const key in log.changes) {
-        if (Object.prototype.hasOwnProperty.call(log.changes, key)) {
+        if (Object.hasOwn(log.changes, key)) {
           const change = log.changes[key];
           if (change) {
             copy.changes[key] = {
@@ -435,7 +435,7 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
     if (typeof value === "object") {
       const copy: any = {};
       for (const key in value) {
-        if (Object.prototype.hasOwnProperty.call(value, key)) {
+        if (Object.hasOwn(value, key)) {
           copy[key] = this.deepCopyValue(value[key]);
         }
       }

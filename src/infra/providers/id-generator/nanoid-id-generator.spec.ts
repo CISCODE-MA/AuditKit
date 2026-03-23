@@ -98,7 +98,7 @@ describe("NanoidIdGenerator", () => {
     it("should generate ID with custom alphabet", () => {
       const id = generator.generate({ alphabet: "0123456789", length: 10 });
 
-      expect(id).toMatch(/^[0-9]+$/);
+      expect(id).toMatch(/^\d+$/);
       expect(id.length).toBe(10);
     });
   });
