@@ -46,6 +46,38 @@ describe("MongoAuditRepository", () => {
     ...overrides,
   });
 
+  const setupCreateModelMock = (log: AuditLog) => {
+    const saveMock = jest.fn().mockResolvedValue({ _id: log.id, ...log });
+    mockModel.mockImplementation((data: any) => ({
+      ...data,
+      save: saveMock,
+    }));
+    return saveMock;
+  };
+
+  const createLeanExecChain = (result: any) => ({
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(result),
+  });
+
+  const createSortedLeanExecChain = (result: any) => ({
+    sort: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(result),
+  });
+
+  const createQueryChain = (result: any) => ({
+    sort: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(result),
+  });
+
+  const createExecChain = (result: any) => ({
+    exec: jest.fn().mockResolvedValue(result),
+  });
+
   beforeEach(() => {
     // Create a mock Mongoose model with constructor behavior
     mockModel = jest.fn().mockImplementation((data: any) => ({
@@ -69,11 +101,7 @@ describe("MongoAuditRepository", () => {
   describe("create", () => {
     it("should create and return audit log", async () => {
       const log = createMockLog();
-      const saveMock = jest.fn().mockResolvedValue({ _id: log.id, ...log });
-      mockModel.mockImplementation((data: any) => ({
-        ...data,
-        save: saveMock,
-      }));
+      const saveMock = setupCreateModelMock(log);
 
       const created = await repository.create(log);
 
@@ -89,11 +117,7 @@ describe("MongoAuditRepository", () => {
           name: { from: "Old", to: "New" },
         },
       });
-      const saveMock = jest.fn().mockResolvedValue({ _id: log.id, ...log });
-      mockModel.mockImplementation((data: any) => ({
-        ...data,
-        save: saveMock,
-      }));
+      setupCreateModelMock(log);
 
       await repository.create(log);
 
@@ -108,11 +132,7 @@ describe("MongoAuditRepository", () => {
       const log = createMockLog({
         metadata: { correlationId: "corr-1" },
       });
-      const saveMock = jest.fn().mockResolvedValue({ _id: log.id, ...log });
-      mockModel.mockImplementation((data: any) => ({
-        ...data,
-        save: saveMock,
-      }));
+      setupCreateModelMock(log);
 
       await repository.create(log);
 
@@ -127,10 +147,7 @@ describe("MongoAuditRepository", () => {
   describe("findById", () => {
     it("should return log when it exists", async () => {
       const log = createMockLog();
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ _id: log.id, ...log }),
-      };
+      const chainMock = createLeanExecChain({ _id: log.id, ...log });
       mockModel.findOne.mockReturnValue(chainMock);
 
       const found = await repository.findById(log.id);
@@ -145,10 +162,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should return null when log does not exist", async () => {
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null),
-      };
+      const chainMock = createLeanExecChain(null);
       mockModel.findOne.mockReturnValue(chainMock);
 
       const found = await repository.findById("non-existent");
@@ -158,10 +172,7 @@ describe("MongoAuditRepository", () => {
 
     it("should transform _id to id", async () => {
       const log = createMockLog();
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ _id: log.id, ...log }),
-      };
+      const chainMock = createLeanExecChain({ _id: log.id, ...log });
       mockModel.findOne.mockReturnValue(chainMock);
 
       const found = await repository.findById(log.id);
@@ -174,11 +185,7 @@ describe("MongoAuditRepository", () => {
   describe("findByActor", () => {
     it("should query by actor ID", async () => {
       const log = createMockLog();
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: log.id, ...log }]),
-      };
+      const chainMock = createSortedLeanExecChain([{ _id: log.id, ...log }]);
       mockModel.find.mockReturnValue(chainMock);
 
       await repository.findByActor("user-1");
@@ -192,11 +199,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should apply action filter", async () => {
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
+      const chainMock = createSortedLeanExecChain([]);
       mockModel.find.mockReturnValue(chainMock);
 
       await repository.findByActor("user-1", { action: AuditActionType.CREATE });
@@ -213,11 +216,7 @@ describe("MongoAuditRepository", () => {
   describe("findByResource", () => {
     it("should query by resource type and ID", async () => {
       const log = createMockLog();
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: log.id, ...log }]),
-      };
+      const chainMock = createSortedLeanExecChain([{ _id: log.id, ...log }]);
       mockModel.find.mockReturnValue(chainMock);
 
       await repository.findByResource("user", "res-1");
@@ -234,18 +233,10 @@ describe("MongoAuditRepository", () => {
 
   describe("query", () => {
     it("should build query without filters", async () => {
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
+      const chainMock = createQueryChain([]);
       mockModel.find.mockReturnValue(chainMock);
 
-      const countChainMock = {
-        exec: jest.fn().mockResolvedValue(0),
-      };
+      const countChainMock = createExecChain(0);
       mockModel.countDocuments.mockReturnValue(countChainMock);
 
       await repository.query({});
@@ -256,18 +247,10 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should filter by action", async () => {
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
+      const chainMock = createQueryChain([]);
       mockModel.find.mockReturnValue(chainMock);
 
-      const countChainMock = {
-        exec: jest.fn().mockResolvedValue(0),
-      };
+      const countChainMock = createExecChain(0);
       mockModel.countDocuments.mockReturnValue(countChainMock);
 
       await repository.query({ action: AuditActionType.CREATE });
@@ -276,18 +259,10 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should apply pagination", async () => {
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
+      const chainMock = createQueryChain([]);
       mockModel.find.mockReturnValue(chainMock);
 
-      const countChainMock = {
-        exec: jest.fn().mockResolvedValue(150),
-      };
+      const countChainMock = createExecChain(150);
       mockModel.countDocuments.mockReturnValue(countChainMock);
 
       await repository.query({ limit: 50, page: 2 });
@@ -297,18 +272,10 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should return pagination metadata", async () => {
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
+      const chainMock = createQueryChain([]);
       mockModel.find.mockReturnValue(chainMock);
 
-      const countChainMock = {
-        exec: jest.fn().mockResolvedValue(150),
-      };
+      const countChainMock = createExecChain(150);
       mockModel.countDocuments.mockReturnValue(countChainMock);
 
       const result = await repository.query({ limit: 50, page: 1 });
@@ -322,9 +289,7 @@ describe("MongoAuditRepository", () => {
 
   describe("count", () => {
     it("should count all documents without filters", async () => {
-      const countChainMock = {
-        exec: jest.fn().mockResolvedValue(42),
-      };
+      const countChainMock = createExecChain(42);
       mockModel.countDocuments.mockReturnValue(countChainMock);
 
       const count = await repository.count();
@@ -334,9 +299,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should count with filters", async () => {
-      const countChainMock = {
-        exec: jest.fn().mockResolvedValue(10),
-      };
+      const countChainMock = createExecChain(10);
       mockModel.countDocuments.mockReturnValue(countChainMock);
 
       const count = await repository.count({ action: AuditActionType.CREATE });
@@ -348,10 +311,7 @@ describe("MongoAuditRepository", () => {
 
   describe("exists", () => {
     it("should return true when document exists", async () => {
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ id: "log-1" }),
-      };
+      const chainMock = createLeanExecChain({ id: "log-1" });
       mockModel.findOne.mockReturnValue(chainMock);
 
       const exists = await repository.exists({ action: AuditActionType.CREATE });
@@ -360,10 +320,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should return false when document does not exist", async () => {
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null),
-      };
+      const chainMock = createLeanExecChain(null);
       mockModel.findOne.mockReturnValue(chainMock);
 
       const exists = await repository.exists({ action: AuditActionType.DELETE });
@@ -375,9 +332,7 @@ describe("MongoAuditRepository", () => {
   describe("deleteOlderThan", () => {
     it("should delete documents older than date", async () => {
       const cutoffDate = new Date("2023-01-01");
-      const deleteChainMock = {
-        exec: jest.fn().mockResolvedValue({ deletedCount: 5 }),
-      };
+      const deleteChainMock = createExecChain({ deletedCount: 5 });
       mockModel.deleteMany.mockReturnValue(deleteChainMock);
 
       const deleted = await repository.deleteOlderThan(cutoffDate);
@@ -389,9 +344,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should handle no deletions", async () => {
-      const deleteChainMock = {
-        exec: jest.fn().mockResolvedValue({ deletedCount: 0 }),
-      };
+      const deleteChainMock = createExecChain({ deletedCount: 0 });
       mockModel.deleteMany.mockReturnValue(deleteChainMock);
 
       const deleted = await repository.deleteOlderThan(new Date("2020-01-01"));
@@ -403,17 +356,14 @@ describe("MongoAuditRepository", () => {
   describe("document transformation", () => {
     it("should transform _id to id in returned documents", async () => {
       const log = createMockLog();
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({
-          _id: log.id,
-          id: log.id,
-          timestamp: log.timestamp,
-          action: log.action,
-          actor: log.actor,
-          resource: log.resource,
-        }),
-      };
+      const chainMock = createLeanExecChain({
+        _id: log.id,
+        id: log.id,
+        timestamp: log.timestamp,
+        action: log.action,
+        actor: log.actor,
+        resource: log.resource,
+      });
       mockModel.findOne.mockReturnValue(chainMock);
 
       const found = await repository.findById(log.id);
@@ -423,10 +373,7 @@ describe("MongoAuditRepository", () => {
     });
 
     it("should handle null document", async () => {
-      const chainMock = {
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null),
-      };
+      const chainMock = createLeanExecChain(null);
       mockModel.findOne.mockReturnValue(chainMock);
 
       const found = await repository.findById("non-existent");
@@ -437,28 +384,24 @@ describe("MongoAuditRepository", () => {
     it("should transform array of documents", async () => {
       const log1 = createMockLog({ id: "log-1" });
       const log2 = createMockLog({ id: "log-2" });
-      const chainMock = {
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([
-          {
-            _id: "mongodb-id-1",
-            id: log1.id,
-            timestamp: log1.timestamp,
-            action: log1.action,
-            actor: log1.actor,
-            resource: log1.resource,
-          },
-          {
-            _id: "mongodb-id-2",
-            id: log2.id,
-            timestamp: log2.timestamp,
-            action: log2.action,
-            actor: log2.actor,
-            resource: log2.resource,
-          },
-        ]),
-      };
+      const chainMock = createSortedLeanExecChain([
+        {
+          _id: "mongodb-id-1",
+          id: log1.id,
+          timestamp: log1.timestamp,
+          action: log1.action,
+          actor: log1.actor,
+          resource: log1.resource,
+        },
+        {
+          _id: "mongodb-id-2",
+          id: log2.id,
+          timestamp: log2.timestamp,
+          action: log2.action,
+          actor: log2.actor,
+          resource: log2.resource,
+        },
+      ]);
       mockModel.find.mockReturnValue(chainMock);
 
       const logs = await repository.findByActor("user-1");
