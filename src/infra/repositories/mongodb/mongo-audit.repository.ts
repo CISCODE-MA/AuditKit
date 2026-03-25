@@ -26,6 +26,9 @@ import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../../.
 
 import type { AuditLogDocument } from "./audit-log.schema";
 
+// eslint-disable-next-line no-unused-vars
+type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
+
 /**
  * MongoDB implementation of audit log repository.
  *
@@ -52,13 +55,18 @@ import type { AuditLogDocument } from "./audit-log.schema";
  * ```
  */
 export class MongoAuditRepository implements IAuditLogRepository {
+  private readonly model: Model<AuditLogDocument>;
+  private readonly archiveHandler: ArchiveHandler | undefined;
+
   /**
    * Creates a new MongoDB audit repository.
    *
    * @param model - Mongoose model for AuditLog
    */
-  // eslint-disable-next-line no-unused-vars
-  constructor(private readonly model: Model<AuditLogDocument>) {}
+  constructor(model: Model<AuditLogDocument>, archiveHandler?: ArchiveHandler) {
+    this.model = model;
+    this.archiveHandler = archiveHandler;
+  }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // CREATE OPERATIONS
@@ -209,6 +217,32 @@ export class MongoAuditRepository implements IAuditLogRepository {
     return result.deletedCount || 0;
   }
 
+  /**
+   * Archives audit logs older than the specified date.
+   *
+   * If no archive handler is configured, this is a no-op.
+   *
+   * @param beforeDate - Archive logs older than this date
+   * @returns Number of archived logs
+   */
+  async archiveOlderThan(beforeDate: Date): Promise<number> {
+    if (!this.archiveHandler) {
+      return 0;
+    }
+
+    const documents = await this.model
+      .find({ timestamp: { $lt: beforeDate } })
+      .lean()
+      .exec();
+    if (documents.length === 0) {
+      return 0;
+    }
+
+    const logs = documents.map((doc) => this.toPlainObject(doc));
+    await this.archiveHandler(logs);
+    return logs.length;
+  }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // PRIVATE HELPER METHODS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -251,6 +285,7 @@ export class MongoAuditRepository implements IAuditLogRepository {
     if (filters.ipAddress) query.ipAddress = filters.ipAddress;
     if (filters.requestId) query.requestId = filters.requestId;
     if (filters.sessionId) query.sessionId = filters.sessionId;
+    if (filters.idempotencyKey) query.idempotencyKey = filters.idempotencyKey;
 
     // Full-text search (if text index is configured)
     if (filters.search) {

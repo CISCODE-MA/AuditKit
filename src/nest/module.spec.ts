@@ -475,17 +475,38 @@ describe("AuditKitModule", () => {
     });
 
     it("should throw for mongodb config without uri or model", async () => {
-      await expect(
-        Test.createTestingModule({
-          imports: [
-            AuditKitModule.register({
-              repository: {
-                type: "mongodb",
-              },
-            }),
-          ],
-        }).compile(),
-      ).rejects.toThrow("MongoDB repository requires either 'uri' or 'model' to be configured");
+      expect(() =>
+        AuditKitModule.register({
+          repository: {
+            type: "mongodb",
+          },
+        }),
+      ).toThrow("MongoDB repository requires either 'uri' or 'model' to be configured");
+    });
+
+    it("should throw for invalid retention days", async () => {
+      expect(() =>
+        AuditKitModule.register({
+          repository: { type: "in-memory" },
+          retention: {
+            enabled: true,
+            retentionDays: 0,
+          },
+        }),
+      ).toThrow("Retention requires a positive integer 'retentionDays'");
+    });
+
+    it("should throw when archive-before-delete has no handler", async () => {
+      expect(() =>
+        AuditKitModule.register({
+          repository: { type: "in-memory" },
+          retention: {
+            enabled: true,
+            retentionDays: 30,
+            archiveBeforeDelete: true,
+          },
+        }),
+      ).toThrow("Retention with archiveBeforeDelete=true requires an archiveHandler");
     });
   });
 });

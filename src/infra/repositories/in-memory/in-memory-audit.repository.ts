@@ -34,6 +34,9 @@
 import type { IAuditLogRepository } from "../../../core/ports/audit-repository.port";
 import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../../../core/types";
 
+// eslint-disable-next-line no-unused-vars
+type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
+
 /**
  * In-memory implementation of audit log repository.
  *
@@ -74,12 +77,15 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
    */
   private readonly logs = new Map<string, AuditLog>();
 
+  private readonly archiveHandler: ArchiveHandler | undefined;
+
   /**
    * Creates a new in-memory repository.
    *
    * @param initialData - Optional initial audit logs (for testing)
    */
-  constructor(initialData?: AuditLog[]) {
+  constructor(initialData?: AuditLog[], archiveHandler?: ArchiveHandler) {
+    this.archiveHandler = archiveHandler;
     if (initialData) {
       initialData.forEach((log) => this.logs.set(log.id, log));
     }
@@ -258,6 +264,30 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
     return deleted;
   }
 
+  /**
+   * Archives audit logs older than the specified date.
+   *
+   * If no archive handler is configured, this is a no-op.
+   *
+   * @param beforeDate - Archive logs older than this date
+   * @returns Number of archived logs
+   */
+  async archiveOlderThan(beforeDate: Date): Promise<number> {
+    if (!this.archiveHandler) {
+      return 0;
+    }
+
+    const logsToArchive = Array.from(this.logs.values()).filter(
+      (log) => log.timestamp < beforeDate,
+    );
+    if (logsToArchive.length === 0) {
+      return 0;
+    }
+
+    await this.archiveHandler(logsToArchive.map((log) => this.deepCopy(log)));
+    return logsToArchive.length;
+  }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // UTILITY METHODS (Testing Support)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -318,6 +348,7 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
     if (filters.ipAddress && log.ipAddress !== filters.ipAddress) return false;
     if (filters.requestId && log.requestId !== filters.requestId) return false;
     if (filters.sessionId && log.sessionId !== filters.sessionId) return false;
+    if (filters.idempotencyKey && log.idempotencyKey !== filters.idempotencyKey) return false;
 
     // Simple text search (searches in action, resource type, actor name)
     if (filters.search) {

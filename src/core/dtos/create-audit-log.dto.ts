@@ -180,6 +180,9 @@ export const CreateAuditLogDtoSchema = z.object({
   /** Session ID (if applicable) */
   sessionId: z.string().optional(),
 
+  /** Idempotency key used to deduplicate retried writes */
+  idempotencyKey: z.string().min(1, "Idempotency key cannot be empty").max(128).optional(),
+
   /**
    * Human-readable reason or justification.
    * May be required by compliance policies for sensitive operations.

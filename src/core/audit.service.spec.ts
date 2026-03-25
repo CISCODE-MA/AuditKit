@@ -384,6 +384,104 @@ describe("AuditService", () => {
         expect(result.success).toBe(true);
       }
     });
+
+    it("should redact configured PII fields before persistence", async () => {
+      const redactingService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        {
+          piiRedaction: {
+            enabled: true,
+            fields: ["actor.email", "metadata.secret", "ipAddress"],
+            mask: "***",
+          },
+        },
+      );
+
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      await redactingService.log({
+        ...validDto,
+        actor: {
+          ...validActor,
+          email: "john@example.com",
+        },
+        metadata: { secret: "top-secret" },
+        ipAddress: MOCK_IP_ADDRESS_2,
+      });
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor: expect.objectContaining({ email: "***" }),
+          metadata: expect.objectContaining({ secret: "***" }),
+          ipAddress: "***",
+        }),
+      );
+    });
+
+    it("should deduplicate writes when idempotency key already exists", async () => {
+      const idempotentService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        {
+          idempotency: {
+            enabled: true,
+            keyStrategy: "idempotencyKey",
+          },
+        },
+      );
+
+      mockRepository.query.mockResolvedValue({
+        data: [expectedAuditLog],
+        page: 1,
+        limit: 1,
+        total: 1,
+        pages: 1,
+      });
+
+      const result = await idempotentService.log({
+        ...validDto,
+        idempotencyKey: "idem-1",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(expectedAuditLog);
+      expect(result.metadata?.idempotentHit).toBe(true);
+      expect(mockRepository.create).not.toHaveBeenCalled();
+    });
+
+    it("should run retention after write when enabled", async () => {
+      const retentionService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        {
+          retention: {
+            enabled: true,
+            retentionDays: 30,
+            autoCleanupOnWrite: true,
+            archiveBeforeDelete: true,
+          },
+        },
+      );
+
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+      (mockRepository.archiveOlderThan as jest.Mock).mockResolvedValue(2);
+      (mockRepository.deleteOlderThan as jest.Mock).mockResolvedValue(3);
+
+      const result = await retentionService.log(validDto);
+
+      expect(mockRepository.archiveOlderThan).toHaveBeenCalled();
+      expect(mockRepository.deleteOlderThan).toHaveBeenCalled();
+      expect(result.metadata?.retention).toBeDefined();
+      expect(result.metadata?.retention?.archived).toBe(2);
+      expect(result.metadata?.retention?.deleted).toBe(3);
+    });
   });
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

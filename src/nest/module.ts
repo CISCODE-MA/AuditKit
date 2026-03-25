@@ -42,6 +42,11 @@ import {
   TIMESTAMP_PROVIDER,
 } from "./constants";
 import type { AuditKitModuleAsyncOptions, AuditKitModuleOptions } from "./interfaces";
+import {
+  getArchiveHandler,
+  toAuditServiceRuntimeOptions,
+  validateAuditKitModuleOptions,
+} from "./options.validation";
 import { createAuditKitAsyncProviders, createAuditKitProviders } from "./providers";
 
 // ============================================================================
@@ -164,6 +169,7 @@ export class AuditKitModule {
    * ```
    */
   static register(options: AuditKitModuleOptions): DynamicModule {
+    validateAuditKitModuleOptions(options);
     const providers = createAuditKitProviders(options);
 
     return {
@@ -320,13 +326,14 @@ export class AuditKitModule {
           useFactory: async (
             moduleOptions: AuditKitModuleOptions,
           ): Promise<IAuditLogRepository> => {
+            validateAuditKitModuleOptions(moduleOptions);
             const config = moduleOptions.repository;
 
             switch (config.type) {
               case "mongodb": {
                 // If a model is provided, use it directly
                 if (config.model) {
-                  return new MongoAuditRepository(config.model);
+                  return new MongoAuditRepository(config.model, getArchiveHandler(moduleOptions));
                 }
 
                 // Otherwise, create a connection and model
@@ -343,12 +350,12 @@ export class AuditKitModule {
 
                 const connection = await connect(config.uri, connectionOptions as ConnectOptions);
                 const model = connection.model("AuditLog", AuditLogSchema);
-                return new MongoAuditRepository(model);
+                return new MongoAuditRepository(model, getArchiveHandler(moduleOptions));
               }
 
               case "in-memory":
               default:
-                return new InMemoryAuditRepository();
+                return new InMemoryAuditRepository(undefined, getArchiveHandler(moduleOptions));
             }
           },
           inject: [AUDIT_KIT_OPTIONS],
@@ -361,10 +368,23 @@ export class AuditKitModule {
             idGenerator: IIdGenerator,
             timestampProvider: ITimestampProvider,
             changeDetector: IChangeDetector,
+            moduleOptions: AuditKitModuleOptions,
           ) => {
-            return new AuditService(repository, idGenerator, timestampProvider, changeDetector);
+            return new AuditService(
+              repository,
+              idGenerator,
+              timestampProvider,
+              changeDetector,
+              toAuditServiceRuntimeOptions(moduleOptions),
+            );
           },
-          inject: [AUDIT_REPOSITORY, ID_GENERATOR, TIMESTAMP_PROVIDER, CHANGE_DETECTOR],
+          inject: [
+            AUDIT_REPOSITORY,
+            ID_GENERATOR,
+            TIMESTAMP_PROVIDER,
+            CHANGE_DETECTOR,
+            AUDIT_KIT_OPTIONS,
+          ],
         },
       ],
       exports: [AuditService, AUDIT_REPOSITORY, ID_GENERATOR, TIMESTAMP_PROVIDER, CHANGE_DETECTOR],

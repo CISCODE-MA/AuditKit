@@ -248,6 +248,9 @@ export interface AuditLog {
   /** Session ID (if applicable) */
   sessionId?: string;
 
+  /** Idempotency key for deduplicating repeated writes */
+  idempotencyKey?: string;
+
   // ─────────────────────────────────────────────────────────────────────────
   // COMPLIANCE - Justification
   // ─────────────────────────────────────────────────────────────────────────
@@ -339,6 +342,9 @@ export interface AuditLogFilters {
 
   /** Filter by session ID */
   sessionId?: string;
+
+  /** Filter by idempotency key */
+  idempotencyKey?: string;
 
   /** Free-text search across multiple fields */
   search?: string;

@@ -15,7 +15,11 @@
 import type { ModuleMetadata, Type } from "@nestjs/common";
 import type { Model } from "mongoose";
 
+import type { AuditLog } from "../core/types";
 import type { AuditLogDocument } from "../infra/repositories/mongodb/audit-log.schema";
+
+// eslint-disable-next-line no-unused-vars
+export type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
 
 // ============================================================================
 // REPOSITORY CONFIGURATION
@@ -132,6 +136,51 @@ export interface ChangeDetectorConfig {
   type?: "deep-diff";
 }
 
+/**
+ * PII redaction configuration.
+ */
+export interface RedactionConfig {
+  /** Enable/disable redaction before persistence. */
+  enabled?: boolean;
+
+  /** Dot-path fields to redact (e.g. actor.email, metadata.token). */
+  fields?: string[];
+
+  /** Replacement mask value. */
+  mask?: string;
+}
+
+/**
+ * Idempotency configuration.
+ */
+export interface IdempotencyConfig {
+  /** Enable/disable write deduplication. */
+  enabled?: boolean;
+
+  /** Which field is used as dedupe key. */
+  keyStrategy?: "idempotencyKey" | "requestId";
+}
+
+/**
+ * Retention and archival configuration.
+ */
+export interface RetentionConfig {
+  /** Enable retention processing. */
+  enabled?: boolean;
+
+  /** Number of days to retain hot data. */
+  retentionDays?: number;
+
+  /** Whether to run retention cleanup after each write. */
+  autoCleanupOnWrite?: boolean;
+
+  /** Archive logs before delete operations. */
+  archiveBeforeDelete?: boolean;
+
+  /** Optional callback receiving logs selected for archival. */
+  archiveHandler?: ArchiveHandler;
+}
+
 // ============================================================================
 // MAIN MODULE OPTIONS
 // ============================================================================
@@ -204,6 +253,21 @@ export interface AuditKitModuleOptions {
    * Optional - defaults to deep-diff detector.
    */
   changeDetector?: ChangeDetectorConfig;
+
+  /**
+   * PII redaction policy applied before persistence.
+   */
+  redaction?: RedactionConfig;
+
+  /**
+   * Idempotency policy to deduplicate repeated writes.
+   */
+  idempotency?: IdempotencyConfig;
+
+  /**
+   * Retention and archival policy.
+   */
+  retention?: RetentionConfig;
 }
 
 // ============================================================================
