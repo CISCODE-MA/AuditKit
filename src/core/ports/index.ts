@@ -73,3 +73,14 @@ export {
   type AuditObserverEvent,
   type AuditOperationType,
 } from "./audit-observer.port";
+
+// ============================================================================
+// AUDIT EVENT PUBLISHER PORT - Event Streaming Hooks
+// ============================================================================
+
+export {
+  AUDIT_EVENT_TYPES,
+  type IAuditEventPublisher,
+  type AuditEvent,
+  type AuditEventType,
+} from "./audit-event-publisher.port";

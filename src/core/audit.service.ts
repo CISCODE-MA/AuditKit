@@ -30,6 +30,11 @@
 
 import type { CreateAuditLogDto, CreateAuditLogWithChanges, QueryAuditLogsDto } from "./dtos";
 import { InvalidActorError, InvalidChangeSetError } from "./errors";
+import {
+  AUDIT_EVENT_TYPES,
+  type AuditEvent,
+  type IAuditEventPublisher,
+} from "./ports/audit-event-publisher.port";
 import type { AuditObserverEvent, IAuditObserver } from "./ports/audit-observer.port";
 import type { IAuditLogRepository } from "./ports/audit-repository.port";
 import type { IChangeDetector } from "./ports/change-detector.port";
@@ -129,6 +134,12 @@ export interface AuditServiceOptions {
    * Observer errors are swallowed and never affect core operations.
    */
   observer?: IAuditObserver;
+
+  /**
+   * Optional audit event publisher for event streaming integrations.
+   * Publisher errors are swallowed and never affect core operations.
+   */
+  eventPublisher?: IAuditEventPublisher;
 }
 
 // ============================================================================
@@ -298,6 +309,7 @@ export class AuditService {
         metadata.retention = retentionResult;
       }
 
+      this.publishAuditCreatedEvent(created);
       this.notifyObserver({ operation: "create", durationMs: duration, success: true });
 
       return {
@@ -897,6 +909,34 @@ export class AuditService {
       }
     } catch {
       // Observer sync errors are intentionally ignored
+    }
+  }
+
+  /**
+   * Publishes a created audit-log event through the configured publisher.
+   *
+   * Errors are swallowed intentionally to avoid impacting business logic.
+   */
+  private publishAuditCreatedEvent(log: AuditLog): void {
+    if (!this._options?.eventPublisher) {
+      return;
+    }
+
+    const event: AuditEvent = {
+      type: AUDIT_EVENT_TYPES.CREATED,
+      emittedAt: new Date(),
+      payload: log,
+    };
+
+    try {
+      const result = this._options.eventPublisher.publish(event);
+      if (result instanceof Promise) {
+        result.catch(() => {
+          // Publisher async errors are intentionally ignored
+        });
+      }
+    } catch {
+      // Publisher sync errors are intentionally ignored
     }
   }
 }

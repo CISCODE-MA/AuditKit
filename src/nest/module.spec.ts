@@ -508,5 +508,21 @@ describe("AuditKitModule", () => {
         }),
       ).toThrow("Retention with archiveBeforeDelete=true requires an archiveHandler");
     });
+
+    it("should throw when event streaming publisher is configured but disabled", async () => {
+      expect(() =>
+        AuditKitModule.register({
+          repository: { type: "in-memory" },
+          eventStreaming: {
+            enabled: false,
+            publisher: {
+              publish: () => {
+                // no-op
+              },
+            },
+          },
+        }),
+      ).toThrow("Event streaming publisher is configured but event streaming is disabled");
+    });
   });
 });

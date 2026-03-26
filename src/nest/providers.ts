@@ -23,6 +23,7 @@ import type { IChangeDetector } from "../core/ports/change-detector.port";
 import type { IIdGenerator } from "../core/ports/id-generator.port";
 import type { ITimestampProvider } from "../core/ports/timestamp-provider.port";
 import { DeepDiffChangeDetector } from "../infra/providers/change-detector/deep-diff-change-detector";
+import { EventEmitterAuditEventPublisher } from "../infra/providers/events/event-emitter-audit-event.publisher";
 import { NanoidIdGenerator } from "../infra/providers/id-generator/nanoid-id-generator";
 import { SystemTimestampProvider } from "../infra/providers/timestamp/system-timestamp-provider";
 import { InMemoryAuditRepository } from "../infra/repositories/in-memory/in-memory-audit.repository";
@@ -188,12 +189,17 @@ export function createAuditKitProviders(options: AuditKitModuleOptions): Provide
         timestampProvider: ITimestampProvider,
         changeDetector: IChangeDetector,
       ) => {
+        const runtimeOptions = toAuditServiceRuntimeOptions(options);
+        if (options.eventStreaming?.enabled && !runtimeOptions.eventPublisher) {
+          runtimeOptions.eventPublisher = new EventEmitterAuditEventPublisher();
+        }
+
         return new AuditService(
           repository,
           idGenerator,
           timestampProvider,
           changeDetector,
-          toAuditServiceRuntimeOptions(options),
+          runtimeOptions,
         );
       },
       inject: [AUDIT_REPOSITORY, ID_GENERATOR, TIMESTAMP_PROVIDER, CHANGE_DETECTOR],

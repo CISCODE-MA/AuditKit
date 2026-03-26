@@ -135,6 +135,12 @@ export {
   type IAuditObserver,
   type AuditObserverEvent,
   type AuditOperationType,
+
+  // Audit Event Publisher Port - Event streaming
+  AUDIT_EVENT_TYPES,
+  type IAuditEventPublisher,
+  type AuditEvent,
+  type AuditEventType,
 } from "./ports";
 
 // ============================================================================

@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+import type { IAuditEventPublisher } from "../core/ports/audit-event-publisher.port";
 import type { IAuditObserver } from "../core/ports/audit-observer.port";
 
 import type { AuditKitModuleOptions } from "./interfaces";
@@ -33,6 +34,9 @@ export interface AuditServiceRuntimeOptions {
   };
   /** Observability observer wired from module options. */
   observer?: IAuditObserver;
+
+  /** Event publisher wired from module options. */
+  eventPublisher?: IAuditEventPublisher;
 }
 
 /**
@@ -70,6 +74,10 @@ export function validateAuditKitModuleOptions(options: AuditKitModuleOptions): v
   if (options.idempotency?.keyStrategy === "requestId" && options.idempotency.enabled === false) {
     throw new Error("Idempotency key strategy is configured but idempotency is disabled");
   }
+
+  if (options.eventStreaming?.enabled === false && options.eventStreaming.publisher) {
+    throw new Error("Event streaming publisher is configured but event streaming is disabled");
+  }
 }
 
 /**
@@ -105,6 +113,10 @@ export function toAuditServiceRuntimeOptions(
 
   if (options.observer) {
     runtimeOptions.observer = options.observer;
+  }
+
+  if (options.eventStreaming?.enabled && options.eventStreaming.publisher) {
+    runtimeOptions.eventPublisher = options.eventStreaming.publisher;
   }
 
   return runtimeOptions;

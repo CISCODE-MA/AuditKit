@@ -16,3 +16,4 @@
 export * from "./id-generator";
 export * from "./timestamp";
 export * from "./change-detector";
+export * from "./events";

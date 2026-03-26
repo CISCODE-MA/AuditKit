@@ -15,6 +15,7 @@
 import type { ModuleMetadata, Type } from "@nestjs/common";
 import type { Model } from "mongoose";
 
+import type { IAuditEventPublisher } from "../core/ports/audit-event-publisher.port";
 import type { IAuditObserver } from "../core/ports/audit-observer.port";
 import type { AuditLog } from "../core/types";
 import type { AuditLogDocument } from "../infra/repositories/mongodb/audit-log.schema";
@@ -182,6 +183,20 @@ export interface RetentionConfig {
   archiveHandler?: ArchiveHandler;
 }
 
+/**
+ * Event streaming configuration.
+ */
+export interface EventStreamingConfig {
+  /** Enable/disable audit event emission. */
+  enabled?: boolean;
+
+  /**
+   * Optional event publisher adapter.
+   * When omitted and enabled=true, a default EventEmitter publisher is used.
+   */
+  publisher?: IAuditEventPublisher;
+}
+
 // ============================================================================
 // MAIN MODULE OPTIONS
 // ============================================================================
@@ -288,6 +303,11 @@ export interface AuditKitModuleOptions {
    * ```
    */
   observer?: IAuditObserver;
+
+  /**
+   * Event streaming settings for emitting audit lifecycle events.
+   */
+  eventStreaming?: EventStreamingConfig;
 }
 
 // ============================================================================

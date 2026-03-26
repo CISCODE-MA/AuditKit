@@ -996,4 +996,51 @@ describe("AuditService", () => {
       await expect(observerService.log(validDto)).resolves.not.toThrow();
     });
   });
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Event Publisher - Event Streaming Hooks
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  describe("event publisher hooks", () => {
+    it("should publish audit.log.created after successful create", async () => {
+      // Arrange
+      const publish = jest.fn();
+      const eventService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { eventPublisher: { publish } },
+      );
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      // Act
+      await eventService.log(validDto);
+
+      // Assert
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "audit.log.created", payload: expectedAuditLog }),
+      );
+    });
+
+    it("should not throw if event publisher throws", async () => {
+      // Arrange
+      const eventPublisher = {
+        publish: jest.fn().mockImplementation(() => {
+          throw new Error("publisher error");
+        }),
+      };
+      const eventService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { eventPublisher },
+      );
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      // Act & Assert
+      await expect(eventService.log(validDto)).resolves.not.toThrow();
+    });
+  });
 });
