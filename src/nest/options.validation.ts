@@ -43,39 +43,55 @@ export interface AuditServiceRuntimeOptions {
  * Validates module options and throws a descriptive Error on invalid configuration.
  */
 export function validateAuditKitModuleOptions(options: AuditKitModuleOptions): void {
-  if (!options || !options.repository) {
+  validateRepository(options);
+  validateRedaction(options);
+  validateRetention(options);
+  validateIdempotency(options);
+  validateEventStreaming(options);
+}
+
+function validateRepository(options: AuditKitModuleOptions): void {
+  if (!options?.repository) {
     throw new Error("AuditKitModule options must include a repository configuration");
   }
 
-  if (options.repository.type === "mongodb") {
-    if (!options.repository.uri && !options.repository.model) {
-      throw new Error("MongoDB repository requires either 'uri' or 'model' to be configured");
-    }
-  }
-
   if (
-    options.redaction?.fields &&
-    options.redaction.fields.some((field) => typeof field !== "string" || field.trim().length === 0)
+    options.repository.type === "mongodb" &&
+    !options.repository.uri &&
+    !options.repository.model
   ) {
+    throw new Error("MongoDB repository requires either 'uri' or 'model' to be configured");
+  }
+}
+
+function validateRedaction(options: AuditKitModuleOptions): void {
+  const fields = options.redaction?.fields;
+  if (fields && fields.some((field) => typeof field !== "string" || field.trim().length === 0)) {
     throw new Error("Redaction fields must be non-empty strings");
   }
+}
 
-  if (options.retention?.enabled) {
-    const retentionDays = options.retention.retentionDays;
-    if (!Number.isInteger(retentionDays) || (retentionDays as number) <= 0) {
-      throw new Error("Retention requires a positive integer 'retentionDays'");
-    }
+function validateRetention(options: AuditKitModuleOptions): void {
+  if (!options.retention?.enabled) return;
 
-    if (options.retention.archiveBeforeDelete && options.retention.archiveHandler === undefined) {
-      throw new Error("Retention with archiveBeforeDelete=true requires an archiveHandler");
-    }
+  const { retentionDays, archiveBeforeDelete, archiveHandler } = options.retention;
+  if (!Number.isInteger(retentionDays) || (retentionDays as number) <= 0) {
+    throw new Error("Retention requires a positive integer 'retentionDays'");
   }
 
-  if (options.idempotency?.keyStrategy === "requestId" && options.idempotency.enabled === false) {
+  if (archiveBeforeDelete && archiveHandler === undefined) {
+    throw new Error("Retention with archiveBeforeDelete=true requires an archiveHandler");
+  }
+}
+
+function validateIdempotency(options: AuditKitModuleOptions): void {
+  if (options.idempotency?.keyStrategy === "requestId" && options.idempotency?.enabled === false) {
     throw new Error("Idempotency key strategy is configured but idempotency is disabled");
   }
+}
 
-  if (options.eventStreaming?.enabled === false && options.eventStreaming.publisher) {
+function validateEventStreaming(options: AuditKitModuleOptions): void {
+  if (options.eventStreaming?.enabled === false && options.eventStreaming?.publisher) {
     throw new Error("Event streaming publisher is configured but event streaming is disabled");
   }
 }
@@ -115,7 +131,7 @@ export function toAuditServiceRuntimeOptions(
     runtimeOptions.observer = options.observer;
   }
 
-  if (options.eventStreaming?.enabled && options.eventStreaming.publisher) {
+  if (options.eventStreaming?.enabled && options.eventStreaming?.publisher) {
     runtimeOptions.eventPublisher = options.eventStreaming.publisher;
   }
 

@@ -263,30 +263,7 @@ export class AuditService {
       };
 
       // Add optional fields only if they're defined
-      if (dto.changes !== undefined) {
-        (auditLog as any).changes = dto.changes;
-      }
-      if (dto.metadata !== undefined) {
-        (auditLog as any).metadata = dto.metadata;
-      }
-      if (dto.ipAddress !== undefined) {
-        (auditLog as any).ipAddress = dto.ipAddress;
-      }
-      if (dto.userAgent !== undefined) {
-        (auditLog as any).userAgent = dto.userAgent;
-      }
-      if (dto.requestId !== undefined) {
-        (auditLog as any).requestId = dto.requestId;
-      }
-      if (dto.sessionId !== undefined) {
-        (auditLog as any).sessionId = dto.sessionId;
-      }
-      if (dto.idempotencyKey !== undefined) {
-        (auditLog as any).idempotencyKey = dto.idempotencyKey;
-      }
-      if (dto.reason !== undefined) {
-        (auditLog as any).reason = dto.reason;
-      }
+      this.assignOptionalFields(auditLog, dto);
 
       const logToPersist = this.applyPiiRedaction(auditLog);
 
@@ -723,6 +700,21 @@ export class AuditService {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   /**
+   * Assigns optional fields from a DTO onto an AuditLog object.
+   * Extracted to keep `log()` cognitive complexity within acceptable bounds.
+   */
+  private assignOptionalFields(auditLog: AuditLog, dto: CreateAuditLogDto): void {
+    if (dto.changes !== undefined) (auditLog as any).changes = dto.changes;
+    if (dto.metadata !== undefined) (auditLog as any).metadata = dto.metadata;
+    if (dto.ipAddress !== undefined) (auditLog as any).ipAddress = dto.ipAddress;
+    if (dto.userAgent !== undefined) (auditLog as any).userAgent = dto.userAgent;
+    if (dto.requestId !== undefined) (auditLog as any).requestId = dto.requestId;
+    if (dto.sessionId !== undefined) (auditLog as any).sessionId = dto.sessionId;
+    if (dto.idempotencyKey !== undefined) (auditLog as any).idempotencyKey = dto.idempotencyKey;
+    if (dto.reason !== undefined) (auditLog as any).reason = dto.reason;
+  }
+
+  /**
    * Validates an actor (ensures all required fields are present and valid).
    *
    * This is called automatically by log() but can also be used standalone.
@@ -856,7 +848,7 @@ export class AuditService {
       cursor = next as Record<string, unknown>;
     }
 
-    const leaf = segments[segments.length - 1];
+    const leaf = segments.at(-1);
     if (!leaf) {
       return;
     }
@@ -871,7 +863,7 @@ export class AuditService {
    */
   private deepClone<T>(value: T): T {
     if (value instanceof Date) {
-      return new Date(value.getTime()) as T;
+      return new Date(value) as T;
     }
 
     if (Array.isArray(value)) {

@@ -340,7 +340,7 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
     const page = sorted.slice(0, limit);
     const data = page.map((log) => this.deepCopy(log));
 
-    const lastItem = data[data.length - 1];
+    const lastItem = data.at(-1);
     const result: CursorPageResult<AuditLog> = {
       data,
       hasMore,
@@ -390,45 +390,58 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
    * @returns True if log matches all filters
    */
   private matchesFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
-    // Actor filters
+    return (
+      this.matchesActorFilters(log, filters) &&
+      this.matchesResourceFilters(log, filters) &&
+      this.matchesDateAndActionFilters(log, filters) &&
+      this.matchesMetadataFilters(log, filters) &&
+      this.matchesSearchFilter(log, filters)
+    );
+  }
+
+  private matchesActorFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.actorId && log.actor.id !== filters.actorId) return false;
     if (filters.actorType && log.actor.type !== filters.actorType) return false;
+    return true;
+  }
 
-    // Resource filters
+  private matchesResourceFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.resourceType && log.resource.type !== filters.resourceType) return false;
     if (filters.resourceId && log.resource.id !== filters.resourceId) return false;
+    return true;
+  }
 
-    // Action filter
+  private matchesDateAndActionFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.action && log.action !== filters.action) return false;
     if (filters.actions && !filters.actions.includes(log.action)) return false;
-
-    // Date range
     if (filters.startDate && log.timestamp < filters.startDate) return false;
     if (filters.endDate && log.timestamp > filters.endDate) return false;
+    return true;
+  }
 
-    // Other filters
+  private matchesMetadataFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.ipAddress && log.ipAddress !== filters.ipAddress) return false;
     if (filters.requestId && log.requestId !== filters.requestId) return false;
     if (filters.sessionId && log.sessionId !== filters.sessionId) return false;
     if (filters.idempotencyKey && log.idempotencyKey !== filters.idempotencyKey) return false;
-
-    // Simple text search (searches in action, resource type, actor name)
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      const searchableText = [
-        log.action,
-        log.resource.type,
-        log.actor.name || "",
-        log.actionDescription || "",
-        log.reason || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      if (!searchableText.includes(searchLower)) return false;
-    }
-
     return true;
+  }
+
+  private matchesSearchFilter(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
+    if (!filters.search) return true;
+
+    const searchLower = filters.search.toLowerCase();
+    const searchableText = [
+      log.action,
+      log.resource.type,
+      log.actor.name ?? "",
+      log.actionDescription ?? "",
+      log.reason ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(searchLower);
   }
 
   /**

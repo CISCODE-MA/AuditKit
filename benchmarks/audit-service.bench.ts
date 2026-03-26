@@ -129,7 +129,7 @@ describe("AuditService.log()", () => {
       resource: benchResource,
       metadata: { reason: "GDPR request", requestId: "req-123" },
       reason: "User data export",
-      ipAddress: "192.168.1.1",
+      ipAddress: "127.0.0.1",
     });
   });
 });
@@ -221,7 +221,7 @@ describe("AuditService.queryWithCursor() — cursor pagination", () => {
   bench("queryWithCursor() — second page (using cursor)", async () => {
     await service.queryWithCursor(
       {},
-      { limit: 20, ...(nextCursor !== undefined ? { cursor: nextCursor } : {}) },
+      { limit: 20, ...(nextCursor === undefined ? {} : { cursor: nextCursor }) },
     );
   });
 });

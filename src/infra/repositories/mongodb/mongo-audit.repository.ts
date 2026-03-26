@@ -294,7 +294,7 @@ export class MongoAuditRepository implements IAuditLogRepository {
     const pageDocuments = documents.slice(0, limit);
     const data = pageDocuments.map((doc) => this.toPlainObject(doc));
 
-    const lastItem = data[data.length - 1];
+    const lastItem = data.at(-1);
     const result: CursorPageResult<AuditLog> = {
       data,
       hasMore,
@@ -323,41 +323,54 @@ export class MongoAuditRepository implements IAuditLogRepository {
    */
   private buildQuery(filters: Partial<AuditLogFilters>): Record<string, any> {
     const query: Record<string, any> = {};
+    this.applyActorFilters(query, filters);
+    this.applyResourceFilters(query, filters);
+    this.applyActionFilter(query, filters);
+    this.applyDateRangeFilter(query, filters);
+    this.applyMetadataFilters(query, filters);
+    if (filters.search) query.$text = { $search: filters.search };
+    return query;
+  }
 
-    // Actor filters
+  private applyActorFilters(query: Record<string, any>, filters: Partial<AuditLogFilters>): void {
     if (filters.actorId) query["actor.id"] = filters.actorId;
     if (filters.actorType) query["actor.type"] = filters.actorType;
+  }
 
-    // Resource filters
+  private applyResourceFilters(
+    query: Record<string, any>,
+    filters: Partial<AuditLogFilters>,
+  ): void {
     if (filters.resourceType) query["resource.type"] = filters.resourceType;
     if (filters.resourceId) query["resource.id"] = filters.resourceId;
+  }
 
-    // Action filter (can be single action or array)
+  private applyActionFilter(query: Record<string, any>, filters: Partial<AuditLogFilters>): void {
     if (filters.action) {
       query.action = filters.action;
     } else if (filters.actions && filters.actions.length > 0) {
       query.action = { $in: filters.actions };
     }
+  }
 
-    // Date range filters
-    if (filters.startDate || filters.endDate) {
-      query.timestamp = {};
-      if (filters.startDate) query.timestamp.$gte = filters.startDate;
-      if (filters.endDate) query.timestamp.$lte = filters.endDate;
-    }
+  private applyDateRangeFilter(
+    query: Record<string, any>,
+    filters: Partial<AuditLogFilters>,
+  ): void {
+    if (!filters.startDate && !filters.endDate) return;
+    query.timestamp = {};
+    if (filters.startDate) query.timestamp.$gte = filters.startDate;
+    if (filters.endDate) query.timestamp.$lte = filters.endDate;
+  }
 
-    // Other filters
+  private applyMetadataFilters(
+    query: Record<string, any>,
+    filters: Partial<AuditLogFilters>,
+  ): void {
     if (filters.ipAddress) query.ipAddress = filters.ipAddress;
     if (filters.requestId) query.requestId = filters.requestId;
     if (filters.sessionId) query.sessionId = filters.sessionId;
     if (filters.idempotencyKey) query.idempotencyKey = filters.idempotencyKey;
-
-    // Full-text search (if text index is configured)
-    if (filters.search) {
-      query.$text = { $search: filters.search };
-    }
-
-    return query;
   }
 
   /**
