@@ -14,10 +14,10 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["jest"],
+    "types": ["jest", "node"],
     "baseUrl": ".",
     "ignoreDeprecations": "5.0"
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }

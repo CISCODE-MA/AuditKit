@@ -22,7 +22,15 @@
 import type { Model } from "mongoose";
 
 import type { IAuditLogRepository } from "../../../core/ports/audit-repository.port";
-import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../../../core/types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageOptions,
+  PageResult,
+} from "../../../core/types";
+import { decodeCursor, encodeCursor } from "../cursor.util";
 
 import type { AuditLogDocument } from "./audit-log.schema";
 
@@ -241,6 +249,63 @@ export class MongoAuditRepository implements IAuditLogRepository {
     const logs = documents.map((doc) => this.toPlainObject(doc));
     await this.archiveHandler(logs);
     return logs.length;
+  }
+
+  /**
+   * Queries audit logs using cursor-based pagination.
+   *
+   * Results are sorted by `timestamp DESC, id ASC`.
+   * The cursor encodes the `{ timestamp, id }` of the last returned item.
+   *
+   * @param filters - Filter criteria
+   * @param options - Cursor and limit options
+   * @returns Cursor-paginated result
+   */
+  async queryWithCursor(
+    filters: Partial<AuditLogFilters>,
+    options?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>> {
+    const limit = options?.limit ?? 20;
+    const query = this.buildQuery(filters);
+
+    // Apply cursor constraint when provided
+    if (options?.cursor) {
+      const cursorData = decodeCursor(options.cursor);
+      const cursorDate = new Date(cursorData.t);
+      const cursorId = cursorData.id;
+
+      // "After cursor" in descending-timestamp + ascending-id order:
+      // timestamp < cursorDate  OR  (timestamp == cursorDate AND id > cursorId)
+      query["$or"] = [
+        { timestamp: { $lt: cursorDate } },
+        { timestamp: cursorDate, id: { $gt: cursorId } },
+      ];
+    }
+
+    // Fetch limit+1 to detect whether more pages exist
+    const documents = await this.model
+      .find(query)
+      .sort({ timestamp: -1, id: 1 })
+      .limit(limit + 1)
+      .lean()
+      .exec();
+
+    const hasMore = documents.length > limit;
+    const pageDocuments = documents.slice(0, limit);
+    const data = pageDocuments.map((doc) => this.toPlainObject(doc));
+
+    const lastItem = data[data.length - 1];
+    const result: CursorPageResult<AuditLog> = {
+      data,
+      hasMore,
+      limit,
+    };
+
+    if (hasMore && lastItem) {
+      result.nextCursor = encodeCursor({ t: lastItem.timestamp.getTime(), id: lastItem.id });
+    }
+
+    return result;
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

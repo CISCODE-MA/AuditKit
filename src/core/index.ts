@@ -49,9 +49,15 @@ export {
   // Main Entity - Audit Log
   type AuditLog,
 
-  // Query & Pagination Types
+  // Offset Pagination Types
   type PageOptions,
   type PageResult,
+
+  // Cursor Pagination Types
+  type CursorPageOptions,
+  type CursorPageResult,
+
+  // Filter Types
   type AuditLogFilters,
 
   // Type Guards - Runtime type checking
@@ -124,6 +130,11 @@ export {
   type TimestampFormat,
   type TimezoneOption,
   type TimestampProviderInfo,
+
+  // Audit Observer Port - Observability hooks
+  type IAuditObserver,
+  type AuditObserverEvent,
+  type AuditOperationType,
 } from "./ports";
 
 // ============================================================================

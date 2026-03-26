@@ -30,11 +30,20 @@
 
 import type { CreateAuditLogDto, CreateAuditLogWithChanges, QueryAuditLogsDto } from "./dtos";
 import { InvalidActorError, InvalidChangeSetError } from "./errors";
+import type { AuditObserverEvent, IAuditObserver } from "./ports/audit-observer.port";
 import type { IAuditLogRepository } from "./ports/audit-repository.port";
 import type { IChangeDetector } from "./ports/change-detector.port";
 import type { IIdGenerator } from "./ports/id-generator.port";
 import type { ITimestampProvider } from "./ports/timestamp-provider.port";
-import type { AuditLog, AuditLogFilters, PageResult, ChangeSet, PageOptions } from "./types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageResult,
+  ChangeSet,
+  PageOptions,
+} from "./types";
 
 // ============================================================================
 // AUDIT SERVICE RESULT TYPES
@@ -114,6 +123,12 @@ export interface AuditServiceOptions {
     autoCleanupOnWrite?: boolean;
     archiveBeforeDelete?: boolean;
   };
+  /**
+   * Optional observability observer.
+   * Called after each operation with timing and outcome metadata.
+   * Observer errors are swallowed and never affect core operations.
+   */
+  observer?: IAuditObserver;
 }
 
 // ============================================================================
@@ -283,12 +298,21 @@ export class AuditService {
         metadata.retention = retentionResult;
       }
 
+      this.notifyObserver({ operation: "create", durationMs: duration, success: true });
+
       return {
         success: true,
         data: created,
         metadata,
       };
     } catch (error) {
+      const duration = Date.now() - startTime;
+      this.notifyObserver({
+        operation: "create",
+        durationMs: duration,
+        success: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
       // Return failure result with error details
       return {
         success: false,
@@ -561,6 +585,72 @@ export class AuditService {
     return this._repository.query(filters);
   }
 
+  /**
+   * Queries audit logs using cursor-based (keyset) pagination.
+   *
+   * Unlike offset pagination (`query()`), cursor pagination is stable — it
+   * won't skip or duplicate items when records are inserted between requests.
+   * Results are sorted by `timestamp DESC, id ASC`.
+   *
+   * Requires the configured repository to support `queryWithCursor`.
+   *
+   * @param filters - Filter criteria (same fields as `query()`, minus pagination)
+   * @param cursorOptions - Cursor and limit options
+   * @returns Cursor-paginated result
+   * @throws {Error} If the configured repository does not support cursor pagination
+   *
+   * @example First page
+   * ```typescript
+   * const page1 = await service.queryWithCursor(
+   *   { actorId: 'user-1' },
+   *   { limit: 10 },
+   * );
+   * ```
+   *
+   * @example Subsequent page
+   * ```typescript
+   * if (page1.hasMore) {
+   *   const page2 = await service.queryWithCursor(
+   *     { actorId: 'user-1' },
+   *     { limit: 10, cursor: page1.nextCursor },
+   *   );
+   * }
+   * ```
+   */
+  async queryWithCursor(
+    filters: Partial<AuditLogFilters>,
+    cursorOptions?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>> {
+    const startTime = Date.now();
+    try {
+      if (!this._repository.queryWithCursor) {
+        throw new Error(
+          "Cursor pagination is not supported by the configured repository. " +
+            "Ensure your repository adapter implements queryWithCursor().",
+        );
+      }
+
+      const result = await this._repository.queryWithCursor(filters, cursorOptions);
+
+      this.notifyObserver({
+        operation: "queryWithCursor",
+        durationMs: Date.now() - startTime,
+        success: true,
+        meta: { count: result.data.length, hasMore: result.hasMore },
+      });
+
+      return result;
+    } catch (error) {
+      this.notifyObserver({
+        operation: "queryWithCursor",
+        durationMs: Date.now() - startTime,
+        success: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // CHANGE DETECTION - Comparing Object States
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -786,5 +876,27 @@ export class AuditService {
     }
 
     return value;
+  }
+
+  /**
+   * Notifies the configured observer with an operation event.
+   *
+   * Errors thrown by the observer are swallowed intentionally — observability
+   * hooks must never disrupt core audit operations.
+   */
+  private notifyObserver(event: AuditObserverEvent): void {
+    if (!this._options?.observer) {
+      return;
+    }
+    try {
+      const result = this._options.observer.onEvent(event);
+      if (result instanceof Promise) {
+        result.catch(() => {
+          // Observer async errors are intentionally ignored
+        });
+      }
+    } catch {
+      // Observer sync errors are intentionally ignored
+    }
   }
 }

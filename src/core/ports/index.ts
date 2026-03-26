@@ -63,3 +63,13 @@ export {
   type TimezoneOption,
   type TimestampProviderInfo,
 } from "./timestamp-provider.port";
+
+// ============================================================================
+// AUDIT OBSERVER PORT - Observability Hooks
+// ============================================================================
+
+export {
+  type IAuditObserver,
+  type AuditObserverEvent,
+  type AuditOperationType,
+} from "./audit-observer.port";

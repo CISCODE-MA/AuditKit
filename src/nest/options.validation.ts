@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+import type { IAuditObserver } from "../core/ports/audit-observer.port";
+
 import type { AuditKitModuleOptions } from "./interfaces";
 
 /**
@@ -29,6 +31,8 @@ export interface AuditServiceRuntimeOptions {
     autoCleanupOnWrite?: boolean;
     archiveBeforeDelete?: boolean;
   };
+  /** Observability observer wired from module options. */
+  observer?: IAuditObserver;
 }
 
 /**
@@ -97,6 +101,10 @@ export function toAuditServiceRuntimeOptions(
       retention.archiveBeforeDelete = options.retention.archiveBeforeDelete;
     }
     runtimeOptions.retention = retention;
+  }
+
+  if (options.observer) {
+    runtimeOptions.observer = options.observer;
   }
 
   return runtimeOptions;

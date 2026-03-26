@@ -15,6 +15,7 @@
 import type { ModuleMetadata, Type } from "@nestjs/common";
 import type { Model } from "mongoose";
 
+import type { IAuditObserver } from "../core/ports/audit-observer.port";
 import type { AuditLog } from "../core/types";
 import type { AuditLogDocument } from "../infra/repositories/mongodb/audit-log.schema";
 
@@ -268,6 +269,25 @@ export interface AuditKitModuleOptions {
    * Retention and archival policy.
    */
   retention?: RetentionConfig;
+
+  /**
+   * Observability observer (OpenTelemetry, metrics, custom logging, etc.).
+   * When provided, AuditService calls `observer.onEvent()` after each operation.
+   * Observer errors are swallowed and never affect core operations.
+   *
+   * @example
+   * ```typescript
+   * AuditKitModule.register({
+   *   repository: { type: 'in-memory' },
+   *   observer: {
+   *     onEvent(event) {
+   *       console.log(`[audit] ${event.operation} in ${event.durationMs}ms`);
+   *     },
+   *   },
+   * });
+   * ```
+   */
+  observer?: IAuditObserver;
 }
 
 // ============================================================================

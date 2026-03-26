@@ -32,7 +32,15 @@
  */
 
 import type { IAuditLogRepository } from "../../../core/ports/audit-repository.port";
-import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../../../core/types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageOptions,
+  PageResult,
+} from "../../../core/types";
+import { decodeCursor, encodeCursor } from "../cursor.util";
 
 // eslint-disable-next-line no-unused-vars
 type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
@@ -291,6 +299,60 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // UTILITY METHODS (Testing Support)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  /**
+   * Queries audit logs with cursor-based pagination.
+   *
+   * Results are sorted by `timestamp DESC, id ASC` for consistency with the
+   * MongoDB adapter. A base64url cursor encodes `{ t, id }` of the last item.
+   *
+   * @param filters - Filter criteria
+   * @param options - Cursor and limit options
+   * @returns Cursor-paginated result
+   */
+  async queryWithCursor(
+    filters: Partial<AuditLogFilters>,
+    options?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>> {
+    const limit = options?.limit ?? 20;
+
+    // Apply filters and sort: timestamp DESC, id ASC
+    let sorted = Array.from(this.logs.values())
+      .filter((log) => this.matchesFilters(log, filters))
+      .sort((a, b) => {
+        const timeDiff = b.timestamp.getTime() - a.timestamp.getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return a.id.localeCompare(b.id);
+      });
+
+    // Apply cursor constraint (skip everything up to and including the cursor item)
+    if (options?.cursor) {
+      const cursorData = decodeCursor(options.cursor);
+      const idx = sorted.findIndex(
+        (log) =>
+          log.timestamp.getTime() < cursorData.t ||
+          (log.timestamp.getTime() === cursorData.t && log.id > cursorData.id),
+      );
+      sorted = idx >= 0 ? sorted.slice(idx) : [];
+    }
+
+    const hasMore = sorted.length > limit;
+    const page = sorted.slice(0, limit);
+    const data = page.map((log) => this.deepCopy(log));
+
+    const lastItem = data[data.length - 1];
+    const result: CursorPageResult<AuditLog> = {
+      data,
+      hasMore,
+      limit,
+    };
+
+    if (hasMore && lastItem) {
+      result.nextCursor = encodeCursor({ t: lastItem.timestamp.getTime(), id: lastItem.id });
+    }
+
+    return result;
+  }
 
   /**
    * Clears all audit logs.
