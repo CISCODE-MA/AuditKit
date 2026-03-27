@@ -228,6 +228,12 @@ export const QueryAuditLogsDtoSchema = z.object({
    */
   sessionId: z.string().optional(),
 
+  /**
+   * Filter by idempotency key.
+   * Example: Find the deduplicated audit write for a retried request
+   */
+  idempotencyKey: z.string().optional(),
+
   // ─────────────────────────────────────────────────────────────────────────
   // FULL-TEXT SEARCH
   // ─────────────────────────────────────────────────────────────────────────

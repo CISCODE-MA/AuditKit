@@ -23,6 +23,7 @@ import type { IChangeDetector } from "../core/ports/change-detector.port";
 import type { IIdGenerator } from "../core/ports/id-generator.port";
 import type { ITimestampProvider } from "../core/ports/timestamp-provider.port";
 import { DeepDiffChangeDetector } from "../infra/providers/change-detector/deep-diff-change-detector";
+import { EventEmitterAuditEventPublisher } from "../infra/providers/events/event-emitter-audit-event.publisher";
 import { NanoidIdGenerator } from "../infra/providers/id-generator/nanoid-id-generator";
 import { SystemTimestampProvider } from "../infra/providers/timestamp/system-timestamp-provider";
 import { InMemoryAuditRepository } from "../infra/repositories/in-memory/in-memory-audit.repository";
@@ -37,6 +38,11 @@ import {
   TIMESTAMP_PROVIDER,
 } from "./constants";
 import type { AuditKitModuleOptions } from "./interfaces";
+import {
+  getArchiveHandler,
+  toAuditServiceRuntimeOptions,
+  validateAuditKitModuleOptions,
+} from "./options.validation";
 
 // ============================================================================
 // PROVIDER FACTORY
@@ -59,6 +65,8 @@ import type { AuditKitModuleOptions } from "./interfaces";
  * @internal
  */
 export function createAuditKitProviders(options: AuditKitModuleOptions): Provider[] {
+  validateAuditKitModuleOptions(options);
+
   return [
     // Configuration provider
     {
@@ -144,7 +152,7 @@ export function createAuditKitProviders(options: AuditKitModuleOptions): Provide
           case "mongodb": {
             // If a model is provided, use it directly
             if (config.model) {
-              return new MongoAuditRepository(config.model);
+              return new MongoAuditRepository(config.model, getArchiveHandler(options));
             }
 
             // Otherwise, create a connection and model
@@ -162,12 +170,12 @@ export function createAuditKitProviders(options: AuditKitModuleOptions): Provide
             const connection = await connect(config.uri, connectionOptions as ConnectOptions);
 
             const model = connection.model("AuditLog", AuditLogSchema);
-            return new MongoAuditRepository(model);
+            return new MongoAuditRepository(model, getArchiveHandler(options));
           }
 
           case "in-memory":
           default:
-            return new InMemoryAuditRepository();
+            return new InMemoryAuditRepository(undefined, getArchiveHandler(options));
         }
       },
     },
@@ -181,7 +189,18 @@ export function createAuditKitProviders(options: AuditKitModuleOptions): Provide
         timestampProvider: ITimestampProvider,
         changeDetector: IChangeDetector,
       ) => {
-        return new AuditService(repository, idGenerator, timestampProvider, changeDetector);
+        const runtimeOptions = toAuditServiceRuntimeOptions(options);
+        if (options.eventStreaming?.enabled && !runtimeOptions.eventPublisher) {
+          runtimeOptions.eventPublisher = new EventEmitterAuditEventPublisher();
+        }
+
+        return new AuditService(
+          repository,
+          idGenerator,
+          timestampProvider,
+          changeDetector,
+          runtimeOptions,
+        );
       },
       inject: [AUDIT_REPOSITORY, ID_GENERATOR, TIMESTAMP_PROVIDER, CHANGE_DETECTOR],
     },
@@ -211,7 +230,11 @@ export function createAuditKitAsyncProviders(options: {
     return [
       {
         provide: AUDIT_KIT_OPTIONS,
-        useFactory: options.useFactory,
+        useFactory: async (...args: any[]) => {
+          const resolved = await options.useFactory!(...args);
+          validateAuditKitModuleOptions(resolved);
+          return resolved;
+        },
         inject: options.inject ?? [],
       },
     ];
@@ -224,7 +247,9 @@ export function createAuditKitAsyncProviders(options: {
         useFactory: async (optionsFactory: {
           createAuditKitOptions: () => Promise<AuditKitModuleOptions> | AuditKitModuleOptions;
         }) => {
-          return await optionsFactory.createAuditKitOptions();
+          const resolved = await optionsFactory.createAuditKitOptions();
+          validateAuditKitModuleOptions(resolved);
+          return resolved;
         },
         inject: [options.useClass],
       },
@@ -242,7 +267,9 @@ export function createAuditKitAsyncProviders(options: {
         useFactory: async (optionsFactory: {
           createAuditKitOptions: () => Promise<AuditKitModuleOptions> | AuditKitModuleOptions;
         }) => {
-          return await optionsFactory.createAuditKitOptions();
+          const resolved = await optionsFactory.createAuditKitOptions();
+          validateAuditKitModuleOptions(resolved);
+          return resolved;
         },
         inject: [options.useExisting],
       },

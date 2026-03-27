@@ -126,11 +126,14 @@ export const AuditLogSchema = new Schema<AuditLogDocument>(
     },
     requestId: {
       type: String,
-      index: true,
     },
     sessionId: {
       type: String,
       index: true,
+    },
+    idempotencyKey: {
+      type: String,
+      sparse: true,
     },
     reason: {
       type: String,

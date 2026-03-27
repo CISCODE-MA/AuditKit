@@ -30,11 +30,25 @@
 
 import type { CreateAuditLogDto, CreateAuditLogWithChanges, QueryAuditLogsDto } from "./dtos";
 import { InvalidActorError, InvalidChangeSetError } from "./errors";
+import {
+  AUDIT_EVENT_TYPES,
+  type AuditEvent,
+  type IAuditEventPublisher,
+} from "./ports/audit-event-publisher.port";
+import type { AuditObserverEvent, IAuditObserver } from "./ports/audit-observer.port";
 import type { IAuditLogRepository } from "./ports/audit-repository.port";
 import type { IChangeDetector } from "./ports/change-detector.port";
 import type { IIdGenerator } from "./ports/id-generator.port";
 import type { ITimestampProvider } from "./ports/timestamp-provider.port";
-import type { AuditLog, AuditLogFilters, PageResult, ChangeSet, PageOptions } from "./types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageResult,
+  ChangeSet,
+  PageOptions,
+} from "./types";
 
 // ============================================================================
 // AUDIT SERVICE RESULT TYPES
@@ -78,7 +92,54 @@ export interface CreateAuditLogResult {
      * Number of fields changed (if applicable)
      */
     fieldCount?: number;
+
+    /**
+     * Whether the operation reused an existing log due to idempotency.
+     */
+    idempotentHit?: boolean;
+
+    /**
+     * Retention processing summary.
+     */
+    retention?: {
+      archived: number;
+      deleted: number;
+      cutoffDate: Date;
+    };
   };
+}
+
+/**
+ * Runtime options for advanced audit service behavior.
+ */
+export interface AuditServiceOptions {
+  piiRedaction?: {
+    enabled?: boolean;
+    fields?: string[];
+    mask?: string;
+  };
+  idempotency?: {
+    enabled?: boolean;
+    keyStrategy?: "idempotencyKey" | "requestId";
+  };
+  retention?: {
+    enabled?: boolean;
+    retentionDays?: number;
+    autoCleanupOnWrite?: boolean;
+    archiveBeforeDelete?: boolean;
+  };
+  /**
+   * Optional observability observer.
+   * Called after each operation with timing and outcome metadata.
+   * Observer errors are swallowed and never affect core operations.
+   */
+  observer?: IAuditObserver;
+
+  /**
+   * Optional audit event publisher for event streaming integrations.
+   * Publisher errors are swallowed and never affect core operations.
+   */
+  eventPublisher?: IAuditEventPublisher;
 }
 
 // ============================================================================
@@ -124,6 +185,8 @@ export class AuditService {
     private readonly _timestampProvider: ITimestampProvider,
     // eslint-disable-next-line no-unused-vars
     private readonly _changeDetector?: IChangeDetector,
+    // eslint-disable-next-line no-unused-vars
+    private readonly _options?: AuditServiceOptions,
   ) {}
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -170,6 +233,20 @@ export class AuditService {
       // Cast to Actor because CreateAuditLogDto's actor has optional fields but satisfies the interface
       this.validateActor(dto.actor as AuditLog["actor"]);
 
+      // Check idempotency before creating a new entry.
+      const existing = await this.findExistingByIdempotency(dto);
+      if (existing) {
+        return {
+          success: true,
+          data: existing,
+          metadata: {
+            duration: Date.now() - startTime,
+            fieldCount: dto.changes ? Object.keys(dto.changes).length : 0,
+            idempotentHit: true,
+          },
+        };
+      }
+
       // Generate a unique ID for this audit log entry
       const id = this._idGenerator.generate({ prefix: "audit_" });
 
@@ -186,44 +263,45 @@ export class AuditService {
       };
 
       // Add optional fields only if they're defined
-      if (dto.changes !== undefined) {
-        (auditLog as any).changes = dto.changes;
-      }
-      if (dto.metadata !== undefined) {
-        (auditLog as any).metadata = dto.metadata;
-      }
-      if (dto.ipAddress !== undefined) {
-        (auditLog as any).ipAddress = dto.ipAddress;
-      }
-      if (dto.userAgent !== undefined) {
-        (auditLog as any).userAgent = dto.userAgent;
-      }
-      if (dto.requestId !== undefined) {
-        (auditLog as any).requestId = dto.requestId;
-      }
-      if (dto.sessionId !== undefined) {
-        (auditLog as any).sessionId = dto.sessionId;
-      }
-      if (dto.reason !== undefined) {
-        (auditLog as any).reason = dto.reason;
-      }
+      this.assignOptionalFields(auditLog, dto);
+
+      const logToPersist = this.applyPiiRedaction(auditLog);
 
       // Persist the audit log to the repository
-      const created = await this._repository.create(auditLog);
+      const created = await this._repository.create(logToPersist);
+
+      const retentionResult = await this.runRetentionIfEnabled(timestamp);
 
       // Calculate operation duration
       const duration = Date.now() - startTime;
 
       // Return success result with metadata
+      const metadata: NonNullable<CreateAuditLogResult["metadata"]> = {
+        duration,
+        fieldCount: dto.changes ? Object.keys(dto.changes).length : 0,
+        idempotentHit: false,
+      };
+
+      if (retentionResult) {
+        metadata.retention = retentionResult;
+      }
+
+      this.publishAuditCreatedEvent(created);
+      this.notifyObserver({ operation: "create", durationMs: duration, success: true });
+
       return {
         success: true,
         data: created,
-        metadata: {
-          duration,
-          fieldCount: dto.changes ? Object.keys(dto.changes).length : 0,
-        },
+        metadata,
       };
     } catch (error) {
+      const duration = Date.now() - startTime;
+      this.notifyObserver({
+        operation: "create",
+        durationMs: duration,
+        success: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
       // Return failure result with error details
       return {
         success: false,
@@ -488,11 +566,78 @@ export class AuditService {
     if (dto.endDate !== undefined) filters.endDate = dto.endDate;
     if (dto.ipAddress !== undefined) filters.ipAddress = dto.ipAddress;
     if (dto.search !== undefined) filters.search = dto.search;
+    if (dto.idempotencyKey !== undefined) filters.idempotencyKey = dto.idempotencyKey;
     if (dto.page !== undefined) filters.page = dto.page;
     if (dto.limit !== undefined) filters.limit = dto.limit;
     if (dto.sort !== undefined) filters.sort = dto.sort;
 
     return this._repository.query(filters);
+  }
+
+  /**
+   * Queries audit logs using cursor-based (keyset) pagination.
+   *
+   * Unlike offset pagination (`query()`), cursor pagination is stable — it
+   * won't skip or duplicate items when records are inserted between requests.
+   * Results are sorted by `timestamp DESC, id ASC`.
+   *
+   * Requires the configured repository to support `queryWithCursor`.
+   *
+   * @param filters - Filter criteria (same fields as `query()`, minus pagination)
+   * @param cursorOptions - Cursor and limit options
+   * @returns Cursor-paginated result
+   * @throws {Error} If the configured repository does not support cursor pagination
+   *
+   * @example First page
+   * ```typescript
+   * const page1 = await service.queryWithCursor(
+   *   { actorId: 'user-1' },
+   *   { limit: 10 },
+   * );
+   * ```
+   *
+   * @example Subsequent page
+   * ```typescript
+   * if (page1.hasMore) {
+   *   const page2 = await service.queryWithCursor(
+   *     { actorId: 'user-1' },
+   *     { limit: 10, cursor: page1.nextCursor },
+   *   );
+   * }
+   * ```
+   */
+  async queryWithCursor(
+    filters: Partial<AuditLogFilters>,
+    cursorOptions?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>> {
+    const startTime = Date.now();
+    try {
+      if (!this._repository.queryWithCursor) {
+        throw new Error(
+          "Cursor pagination is not supported by the configured repository. " +
+            "Ensure your repository adapter implements queryWithCursor().",
+        );
+      }
+
+      const result = await this._repository.queryWithCursor(filters, cursorOptions);
+
+      this.notifyObserver({
+        operation: "queryWithCursor",
+        durationMs: Date.now() - startTime,
+        success: true,
+        meta: { count: result.data.length, hasMore: result.hasMore },
+      });
+
+      return result;
+    } catch (error) {
+      this.notifyObserver({
+        operation: "queryWithCursor",
+        durationMs: Date.now() - startTime,
+        success: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -555,6 +700,21 @@ export class AuditService {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   /**
+   * Assigns optional fields from a DTO onto an AuditLog object.
+   * Extracted to keep `log()` cognitive complexity within acceptable bounds.
+   */
+  private assignOptionalFields(auditLog: AuditLog, dto: CreateAuditLogDto): void {
+    if (dto.changes !== undefined) (auditLog as any).changes = dto.changes;
+    if (dto.metadata !== undefined) (auditLog as any).metadata = dto.metadata;
+    if (dto.ipAddress !== undefined) (auditLog as any).ipAddress = dto.ipAddress;
+    if (dto.userAgent !== undefined) (auditLog as any).userAgent = dto.userAgent;
+    if (dto.requestId !== undefined) (auditLog as any).requestId = dto.requestId;
+    if (dto.sessionId !== undefined) (auditLog as any).sessionId = dto.sessionId;
+    if (dto.idempotencyKey !== undefined) (auditLog as any).idempotencyKey = dto.idempotencyKey;
+    if (dto.reason !== undefined) (auditLog as any).reason = dto.reason;
+  }
+
+  /**
    * Validates an actor (ensures all required fields are present and valid).
    *
    * This is called automatically by log() but can also be used standalone.
@@ -578,6 +738,197 @@ export class AuditService {
     // Validate actor type (must be 'user', 'system', or 'service')
     if (!["user", "system", "service"].includes(actor.type)) {
       throw InvalidActorError.invalidType(actor.type);
+    }
+  }
+
+  /**
+   * Finds an existing audit log when idempotency is enabled and a key is present.
+   */
+  private async findExistingByIdempotency(dto: CreateAuditLogDto): Promise<AuditLog | null> {
+    if (!this._options?.idempotency?.enabled) {
+      return null;
+    }
+
+    const strategy = this._options.idempotency.keyStrategy ?? "idempotencyKey";
+    const key = strategy === "requestId" ? dto.requestId : dto.idempotencyKey;
+    if (!key) {
+      return null;
+    }
+
+    const queryFilters: Partial<AuditLogFilters> & Partial<PageOptions> = {
+      page: 1,
+      limit: 1,
+      sort: "-timestamp",
+    };
+
+    if (strategy === "idempotencyKey") {
+      queryFilters.idempotencyKey = key;
+    } else {
+      queryFilters.requestId = key;
+    }
+
+    const existing = await this._repository.query(queryFilters);
+
+    return existing.data[0] ?? null;
+  }
+
+  /**
+   * Applies configured PII redaction to selected fields before persistence.
+   */
+  private applyPiiRedaction(log: AuditLog): AuditLog {
+    if (!this._options?.piiRedaction?.enabled) {
+      return log;
+    }
+
+    const redactionPaths =
+      this._options.piiRedaction.fields && this._options.piiRedaction.fields.length > 0
+        ? this._options.piiRedaction.fields
+        : ["actor.email", "metadata.password", "metadata.token", "metadata.authorization"];
+    const mask = this._options.piiRedaction.mask ?? "[REDACTED]";
+
+    const cloned = this.deepClone(log);
+    for (const path of redactionPaths) {
+      this.redactPath(cloned as unknown as Record<string, unknown>, path, mask);
+    }
+
+    return cloned;
+  }
+
+  /**
+   * Applies retention policy after writes when configured.
+   */
+  private async runRetentionIfEnabled(
+    timestamp: Date,
+  ): Promise<{ archived: number; deleted: number; cutoffDate: Date } | undefined> {
+    if (!this._options?.retention?.enabled || !this._options.retention.autoCleanupOnWrite) {
+      return undefined;
+    }
+
+    const retentionDays = this._options.retention.retentionDays;
+    if (!retentionDays || retentionDays <= 0) {
+      return undefined;
+    }
+
+    const cutoffDate = new Date(timestamp);
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+    let archived = 0;
+    if (this._options.retention.archiveBeforeDelete && this._repository.archiveOlderThan) {
+      archived = await this._repository.archiveOlderThan(cutoffDate);
+    }
+
+    let deleted = 0;
+    if (this._repository.deleteOlderThan) {
+      deleted = await this._repository.deleteOlderThan(cutoffDate);
+    }
+
+    return { archived, deleted, cutoffDate };
+  }
+
+  /**
+   * Redacts one dot-path inside a mutable object.
+   */
+  private redactPath(target: Record<string, unknown>, path: string, mask: string): void {
+    const segments = path.split(".").filter(Boolean);
+    if (segments.length === 0) {
+      return;
+    }
+
+    let cursor: Record<string, unknown> = target;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const segment = segments[i];
+      if (!segment) {
+        return;
+      }
+
+      const next = cursor[segment];
+      if (!next || typeof next !== "object" || Array.isArray(next)) {
+        return;
+      }
+      cursor = next as Record<string, unknown>;
+    }
+
+    const leaf = segments.at(-1);
+    if (!leaf) {
+      return;
+    }
+
+    if (leaf in cursor) {
+      cursor[leaf] = mask;
+    }
+  }
+
+  /**
+   * Deep clones plain objects while preserving Date instances.
+   */
+  private deepClone<T>(value: T): T {
+    if (value instanceof Date) {
+      return new Date(value) as T;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.deepClone(item)) as T;
+    }
+
+    if (value && typeof value === "object") {
+      const source = value as Record<string, unknown>;
+      const cloned: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(source)) {
+        cloned[key] = this.deepClone(item);
+      }
+      return cloned as T;
+    }
+
+    return value;
+  }
+
+  /**
+   * Notifies the configured observer with an operation event.
+   *
+   * Errors thrown by the observer are swallowed intentionally — observability
+   * hooks must never disrupt core audit operations.
+   */
+  private notifyObserver(event: AuditObserverEvent): void {
+    if (!this._options?.observer) {
+      return;
+    }
+    try {
+      const result = this._options.observer.onEvent(event);
+      if (result instanceof Promise) {
+        result.catch(() => {
+          // Observer async errors are intentionally ignored
+        });
+      }
+    } catch {
+      // Observer sync errors are intentionally ignored
+    }
+  }
+
+  /**
+   * Publishes a created audit-log event through the configured publisher.
+   *
+   * Errors are swallowed intentionally to avoid impacting business logic.
+   */
+  private publishAuditCreatedEvent(log: AuditLog): void {
+    if (!this._options?.eventPublisher) {
+      return;
+    }
+
+    const event: AuditEvent = {
+      type: AUDIT_EVENT_TYPES.CREATED,
+      emittedAt: new Date(),
+      payload: log,
+    };
+
+    try {
+      const result = this._options.eventPublisher.publish(event);
+      if (result instanceof Promise) {
+        result.catch(() => {
+          // Publisher async errors are intentionally ignored
+        });
+      }
+    } catch {
+      // Publisher sync errors are intentionally ignored
     }
   }
 }

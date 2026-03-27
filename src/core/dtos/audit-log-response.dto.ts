@@ -129,6 +129,9 @@ export const AuditLogResponseDtoSchema = z.object({
   /** Session ID */
   sessionId: z.string().optional(),
 
+  /** Idempotency key */
+  idempotencyKey: z.string().optional(),
+
   // ─────────────────────────────────────────────────────────────────────────
   // COMPLIANCE
   // ─────────────────────────────────────────────────────────────────────────

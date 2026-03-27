@@ -22,9 +22,20 @@
 import type { Model } from "mongoose";
 
 import type { IAuditLogRepository } from "../../../core/ports/audit-repository.port";
-import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../../../core/types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageOptions,
+  PageResult,
+} from "../../../core/types";
+import { decodeCursor, encodeCursor } from "../cursor.util";
 
 import type { AuditLogDocument } from "./audit-log.schema";
+
+// eslint-disable-next-line no-unused-vars
+type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
 
 /**
  * MongoDB implementation of audit log repository.
@@ -52,13 +63,18 @@ import type { AuditLogDocument } from "./audit-log.schema";
  * ```
  */
 export class MongoAuditRepository implements IAuditLogRepository {
+  private readonly model: Model<AuditLogDocument>;
+  private readonly archiveHandler: ArchiveHandler | undefined;
+
   /**
    * Creates a new MongoDB audit repository.
    *
    * @param model - Mongoose model for AuditLog
    */
-  // eslint-disable-next-line no-unused-vars
-  constructor(private readonly model: Model<AuditLogDocument>) {}
+  constructor(model: Model<AuditLogDocument>, archiveHandler?: ArchiveHandler) {
+    this.model = model;
+    this.archiveHandler = archiveHandler;
+  }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // CREATE OPERATIONS
@@ -209,6 +225,89 @@ export class MongoAuditRepository implements IAuditLogRepository {
     return result.deletedCount || 0;
   }
 
+  /**
+   * Archives audit logs older than the specified date.
+   *
+   * If no archive handler is configured, this is a no-op.
+   *
+   * @param beforeDate - Archive logs older than this date
+   * @returns Number of archived logs
+   */
+  async archiveOlderThan(beforeDate: Date): Promise<number> {
+    if (!this.archiveHandler) {
+      return 0;
+    }
+
+    const documents = await this.model
+      .find({ timestamp: { $lt: beforeDate } })
+      .lean()
+      .exec();
+    if (documents.length === 0) {
+      return 0;
+    }
+
+    const logs = documents.map((doc) => this.toPlainObject(doc));
+    await this.archiveHandler(logs);
+    return logs.length;
+  }
+
+  /**
+   * Queries audit logs using cursor-based pagination.
+   *
+   * Results are sorted by `timestamp DESC, id ASC`.
+   * The cursor encodes the `{ timestamp, id }` of the last returned item.
+   *
+   * @param filters - Filter criteria
+   * @param options - Cursor and limit options
+   * @returns Cursor-paginated result
+   */
+  async queryWithCursor(
+    filters: Partial<AuditLogFilters>,
+    options?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>> {
+    const limit = options?.limit ?? 20;
+    const query = this.buildQuery(filters);
+
+    // Apply cursor constraint when provided
+    if (options?.cursor) {
+      const cursorData = decodeCursor(options.cursor);
+      const cursorDate = new Date(cursorData.t);
+      const cursorId = cursorData.id;
+
+      // "After cursor" in descending-timestamp + ascending-id order:
+      // timestamp < cursorDate  OR  (timestamp == cursorDate AND id > cursorId)
+      query["$or"] = [
+        { timestamp: { $lt: cursorDate } },
+        { timestamp: cursorDate, id: { $gt: cursorId } },
+      ];
+    }
+
+    // Fetch limit+1 to detect whether more pages exist
+    const documents = await this.model
+      .find(query)
+      .sort({ timestamp: -1, id: 1 })
+      .limit(limit + 1)
+      .lean()
+      .exec();
+
+    const hasMore = documents.length > limit;
+    const pageDocuments = documents.slice(0, limit);
+    const data = pageDocuments.map((doc) => this.toPlainObject(doc));
+
+    const lastItem = data.at(-1);
+    const result: CursorPageResult<AuditLog> = {
+      data,
+      hasMore,
+      limit,
+    };
+
+    if (hasMore && lastItem) {
+      result.nextCursor = encodeCursor({ t: lastItem.timestamp.getTime(), id: lastItem.id });
+    }
+
+    return result;
+  }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // PRIVATE HELPER METHODS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -224,40 +323,54 @@ export class MongoAuditRepository implements IAuditLogRepository {
    */
   private buildQuery(filters: Partial<AuditLogFilters>): Record<string, any> {
     const query: Record<string, any> = {};
+    this.applyActorFilters(query, filters);
+    this.applyResourceFilters(query, filters);
+    this.applyActionFilter(query, filters);
+    this.applyDateRangeFilter(query, filters);
+    this.applyMetadataFilters(query, filters);
+    if (filters.search) query.$text = { $search: filters.search };
+    return query;
+  }
 
-    // Actor filters
+  private applyActorFilters(query: Record<string, any>, filters: Partial<AuditLogFilters>): void {
     if (filters.actorId) query["actor.id"] = filters.actorId;
     if (filters.actorType) query["actor.type"] = filters.actorType;
+  }
 
-    // Resource filters
+  private applyResourceFilters(
+    query: Record<string, any>,
+    filters: Partial<AuditLogFilters>,
+  ): void {
     if (filters.resourceType) query["resource.type"] = filters.resourceType;
     if (filters.resourceId) query["resource.id"] = filters.resourceId;
+  }
 
-    // Action filter (can be single action or array)
+  private applyActionFilter(query: Record<string, any>, filters: Partial<AuditLogFilters>): void {
     if (filters.action) {
       query.action = filters.action;
     } else if (filters.actions && filters.actions.length > 0) {
       query.action = { $in: filters.actions };
     }
+  }
 
-    // Date range filters
-    if (filters.startDate || filters.endDate) {
-      query.timestamp = {};
-      if (filters.startDate) query.timestamp.$gte = filters.startDate;
-      if (filters.endDate) query.timestamp.$lte = filters.endDate;
-    }
+  private applyDateRangeFilter(
+    query: Record<string, any>,
+    filters: Partial<AuditLogFilters>,
+  ): void {
+    if (!filters.startDate && !filters.endDate) return;
+    query.timestamp = {};
+    if (filters.startDate) query.timestamp.$gte = filters.startDate;
+    if (filters.endDate) query.timestamp.$lte = filters.endDate;
+  }
 
-    // Other filters
+  private applyMetadataFilters(
+    query: Record<string, any>,
+    filters: Partial<AuditLogFilters>,
+  ): void {
     if (filters.ipAddress) query.ipAddress = filters.ipAddress;
     if (filters.requestId) query.requestId = filters.requestId;
     if (filters.sessionId) query.sessionId = filters.sessionId;
-
-    // Full-text search (if text index is configured)
-    if (filters.search) {
-      query.$text = { $search: filters.search };
-    }
-
-    return query;
+    if (filters.idempotencyKey) query.idempotencyKey = filters.idempotencyKey;
   }
 
   /**

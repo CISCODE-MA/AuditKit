@@ -1,0 +1,31 @@
+{
+  "packageManager": "npm",
+  "testRunner": "jest",
+  "mutate": [
+    "src/core/audit.service.ts",
+    "src/core/dtos/**/*.ts",
+    "src/core/errors/**/*.ts",
+    "src/infra/repositories/**/*.ts",
+    "src/nest/options.validation.ts"
+  ],
+  "reporters": ["html", "progress"],
+  "coverageAnalysis": "perTest",
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 0
+  },
+  "jest": {
+    "projectType": "custom",
+    "config": {
+      "testEnvironment": "node",
+      "transform": {
+        "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
+      },
+      "transformIgnorePatterns": ["node_modules/(?!(nanoid)/)"],
+      "testMatch": ["<rootDir>/src/**/*.spec.ts"]
+    }
+  },
+  "ignorePatterns": ["src/**/index.ts", "src/**/*.d.ts"],
+  "tsconfigFile": "tsconfig.json"
+}

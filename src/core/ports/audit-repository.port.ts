@@ -24,7 +24,14 @@
  * @packageDocumentation
  */
 
-import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageOptions,
+  PageResult,
+} from "../types";
 
 // ESLint disable for interface method parameters (they're part of the contract, not actual code)
 /* eslint-disable no-unused-vars */
@@ -284,4 +291,39 @@ export interface IAuditLogRepository {
    * @throws Error if archival fails or not supported
    */
   archiveOlderThan?(_beforeDate: Date): Promise<number>;
+
+  /**
+   * Queries audit logs using cursor-based pagination.
+   *
+   * Unlike offset pagination (`query()`), cursor pagination is stable:
+   * it won't skip or duplicate items when records are inserted or deleted
+   * between pages. Results are always sorted by `timestamp DESC, id ASC`.
+   *
+   * @param filters - Filter criteria (same as `query()`, except page/limit/sort are ignored)
+   * @param options - Cursor and limit options
+   * @returns Cursor-paginated result with an opaque `nextCursor` for the next page
+   * @throws Error if the cursor is invalid or query execution fails
+   *
+   * @example First page
+   * ```typescript
+   * const page1 = await repository.queryWithCursor(
+   *   { actorId: 'user-1' },
+   *   { limit: 10 },
+   * );
+   * ```
+   *
+   * @example Next page
+   * ```typescript
+   * if (page1.hasMore) {
+   *   const page2 = await repository.queryWithCursor(
+   *     { actorId: 'user-1' },
+   *     { limit: 10, cursor: page1.nextCursor },
+   *   );
+   * }
+   * ```
+   */
+  queryWithCursor?(
+    _filters: Partial<AuditLogFilters>,
+    _options?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>>;
 }

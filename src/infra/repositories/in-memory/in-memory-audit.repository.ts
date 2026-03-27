@@ -32,7 +32,18 @@
  */
 
 import type { IAuditLogRepository } from "../../../core/ports/audit-repository.port";
-import type { AuditLog, AuditLogFilters, PageOptions, PageResult } from "../../../core/types";
+import type {
+  AuditLog,
+  AuditLogFilters,
+  CursorPageOptions,
+  CursorPageResult,
+  PageOptions,
+  PageResult,
+} from "../../../core/types";
+import { decodeCursor, encodeCursor } from "../cursor.util";
+
+// eslint-disable-next-line no-unused-vars
+type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
 
 /**
  * In-memory implementation of audit log repository.
@@ -74,12 +85,15 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
    */
   private readonly logs = new Map<string, AuditLog>();
 
+  private readonly archiveHandler: ArchiveHandler | undefined;
+
   /**
    * Creates a new in-memory repository.
    *
    * @param initialData - Optional initial audit logs (for testing)
    */
-  constructor(initialData?: AuditLog[]) {
+  constructor(initialData?: AuditLog[], archiveHandler?: ArchiveHandler) {
+    this.archiveHandler = archiveHandler;
     if (initialData) {
       initialData.forEach((log) => this.logs.set(log.id, log));
     }
@@ -258,9 +272,87 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
     return deleted;
   }
 
+  /**
+   * Archives audit logs older than the specified date.
+   *
+   * If no archive handler is configured, this is a no-op.
+   *
+   * @param beforeDate - Archive logs older than this date
+   * @returns Number of archived logs
+   */
+  async archiveOlderThan(beforeDate: Date): Promise<number> {
+    if (!this.archiveHandler) {
+      return 0;
+    }
+
+    const logsToArchive = Array.from(this.logs.values()).filter(
+      (log) => log.timestamp < beforeDate,
+    );
+    if (logsToArchive.length === 0) {
+      return 0;
+    }
+
+    await this.archiveHandler(logsToArchive.map((log) => this.deepCopy(log)));
+    return logsToArchive.length;
+  }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // UTILITY METHODS (Testing Support)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  /**
+   * Queries audit logs with cursor-based pagination.
+   *
+   * Results are sorted by `timestamp DESC, id ASC` for consistency with the
+   * MongoDB adapter. A base64url cursor encodes `{ t, id }` of the last item.
+   *
+   * @param filters - Filter criteria
+   * @param options - Cursor and limit options
+   * @returns Cursor-paginated result
+   */
+  async queryWithCursor(
+    filters: Partial<AuditLogFilters>,
+    options?: CursorPageOptions,
+  ): Promise<CursorPageResult<AuditLog>> {
+    const limit = options?.limit ?? 20;
+
+    // Apply filters and sort: timestamp DESC, id ASC
+    let sorted = Array.from(this.logs.values())
+      .filter((log) => this.matchesFilters(log, filters))
+      .sort((a, b) => {
+        const timeDiff = b.timestamp.getTime() - a.timestamp.getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return a.id.localeCompare(b.id);
+      });
+
+    // Apply cursor constraint (skip everything up to and including the cursor item)
+    if (options?.cursor) {
+      const cursorData = decodeCursor(options.cursor);
+      const idx = sorted.findIndex(
+        (log) =>
+          log.timestamp.getTime() < cursorData.t ||
+          (log.timestamp.getTime() === cursorData.t && log.id > cursorData.id),
+      );
+      sorted = idx >= 0 ? sorted.slice(idx) : [];
+    }
+
+    const hasMore = sorted.length > limit;
+    const page = sorted.slice(0, limit);
+    const data = page.map((log) => this.deepCopy(log));
+
+    const lastItem = data.at(-1);
+    const result: CursorPageResult<AuditLog> = {
+      data,
+      hasMore,
+      limit,
+    };
+
+    if (hasMore && lastItem) {
+      result.nextCursor = encodeCursor({ t: lastItem.timestamp.getTime(), id: lastItem.id });
+    }
+
+    return result;
+  }
 
   /**
    * Clears all audit logs.
@@ -298,44 +390,58 @@ export class InMemoryAuditRepository implements IAuditLogRepository {
    * @returns True if log matches all filters
    */
   private matchesFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
-    // Actor filters
+    return (
+      this.matchesActorFilters(log, filters) &&
+      this.matchesResourceFilters(log, filters) &&
+      this.matchesDateAndActionFilters(log, filters) &&
+      this.matchesMetadataFilters(log, filters) &&
+      this.matchesSearchFilter(log, filters)
+    );
+  }
+
+  private matchesActorFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.actorId && log.actor.id !== filters.actorId) return false;
     if (filters.actorType && log.actor.type !== filters.actorType) return false;
+    return true;
+  }
 
-    // Resource filters
+  private matchesResourceFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.resourceType && log.resource.type !== filters.resourceType) return false;
     if (filters.resourceId && log.resource.id !== filters.resourceId) return false;
+    return true;
+  }
 
-    // Action filter
+  private matchesDateAndActionFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.action && log.action !== filters.action) return false;
     if (filters.actions && !filters.actions.includes(log.action)) return false;
-
-    // Date range
     if (filters.startDate && log.timestamp < filters.startDate) return false;
     if (filters.endDate && log.timestamp > filters.endDate) return false;
+    return true;
+  }
 
-    // Other filters
+  private matchesMetadataFilters(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
     if (filters.ipAddress && log.ipAddress !== filters.ipAddress) return false;
     if (filters.requestId && log.requestId !== filters.requestId) return false;
     if (filters.sessionId && log.sessionId !== filters.sessionId) return false;
-
-    // Simple text search (searches in action, resource type, actor name)
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      const searchableText = [
-        log.action,
-        log.resource.type,
-        log.actor.name || "",
-        log.actionDescription || "",
-        log.reason || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      if (!searchableText.includes(searchLower)) return false;
-    }
-
+    if (filters.idempotencyKey && log.idempotencyKey !== filters.idempotencyKey) return false;
     return true;
+  }
+
+  private matchesSearchFilter(log: AuditLog, filters: Partial<AuditLogFilters>): boolean {
+    if (!filters.search) return true;
+
+    const searchLower = filters.search.toLowerCase();
+    const searchableText = [
+      log.action,
+      log.resource.type,
+      log.actor.name ?? "",
+      log.actionDescription ?? "",
+      log.reason ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(searchLower);
   }
 
   /**

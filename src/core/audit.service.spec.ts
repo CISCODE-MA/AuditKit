@@ -34,7 +34,6 @@ import type { IIdGenerator } from "./ports/id-generator.port";
 import type { ITimestampProvider } from "./ports/timestamp-provider.port";
 import type { AuditLog, ChangeSet } from "./types";
 import { ActorType, AuditActionType } from "./types";
-
 // ============================================================================
 // MOCK IMPLEMENTATIONS
 // ============================================================================
@@ -53,6 +52,7 @@ const createMockRepository = (): jest.Mocked<IAuditLogRepository> => ({
   exists: jest.fn(),
   deleteOlderThan: jest.fn(),
   archiveOlderThan: jest.fn(),
+  queryWithCursor: jest.fn(),
 });
 
 /**
@@ -383,6 +383,104 @@ describe("AuditService", () => {
         const result = await service.log(dto);
         expect(result.success).toBe(true);
       }
+    });
+
+    it("should redact configured PII fields before persistence", async () => {
+      const redactingService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        {
+          piiRedaction: {
+            enabled: true,
+            fields: ["actor.email", "metadata.secret", "ipAddress"],
+            mask: "***",
+          },
+        },
+      );
+
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      await redactingService.log({
+        ...validDto,
+        actor: {
+          ...validActor,
+          email: "john@example.com",
+        },
+        metadata: { secret: "top-secret" },
+        ipAddress: MOCK_IP_ADDRESS_2,
+      });
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor: expect.objectContaining({ email: "***" }),
+          metadata: expect.objectContaining({ secret: "***" }),
+          ipAddress: "***",
+        }),
+      );
+    });
+
+    it("should deduplicate writes when idempotency key already exists", async () => {
+      const idempotentService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        {
+          idempotency: {
+            enabled: true,
+            keyStrategy: "idempotencyKey",
+          },
+        },
+      );
+
+      mockRepository.query.mockResolvedValue({
+        data: [expectedAuditLog],
+        page: 1,
+        limit: 1,
+        total: 1,
+        pages: 1,
+      });
+
+      const result = await idempotentService.log({
+        ...validDto,
+        idempotencyKey: "idem-1",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(expectedAuditLog);
+      expect(result.metadata?.idempotentHit).toBe(true);
+      expect(mockRepository.create).not.toHaveBeenCalled();
+    });
+
+    it("should run retention after write when enabled", async () => {
+      const retentionService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        {
+          retention: {
+            enabled: true,
+            retentionDays: 30,
+            autoCleanupOnWrite: true,
+            archiveBeforeDelete: true,
+          },
+        },
+      );
+
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+      (mockRepository.archiveOlderThan as jest.Mock).mockResolvedValue(2);
+      (mockRepository.deleteOlderThan as jest.Mock).mockResolvedValue(3);
+
+      const result = await retentionService.log(validDto);
+
+      expect(mockRepository.archiveOlderThan).toHaveBeenCalled();
+      expect(mockRepository.deleteOlderThan).toHaveBeenCalled();
+      expect(result.metadata?.retention).toBeDefined();
+      expect(result.metadata?.retention?.archived).toBe(2);
+      expect(result.metadata?.retention?.deleted).toBe(3);
     });
   });
 
@@ -752,6 +850,197 @@ describe("AuditService", () => {
       await expect(serviceWithoutDetector.detectChanges({ a: 1 }, { a: 2 })).rejects.toThrow(
         "not configured",
       );
+    });
+  });
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // queryWithCursor() - Cursor-Based Pagination
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  describe("queryWithCursor()", () => {
+    it("should return cursor-paginated results when repository supports it", async () => {
+      // Arrange
+      const cursorResult = {
+        data: [expectedAuditLog],
+        hasMore: true,
+        limit: 10,
+        nextCursor: "eyJ0IjoxNzQ2OTk0MDAwMDAwLCJpZCI6ImF1ZGl0XzEyMyJ9",
+      };
+      (mockRepository as any).queryWithCursor = jest.fn().mockResolvedValue(cursorResult);
+
+      // Act
+      const result = await service.queryWithCursor({}, { limit: 10 });
+
+      // Assert
+      expect(result).toEqual(cursorResult);
+      expect((mockRepository as any).queryWithCursor).toHaveBeenCalledWith(expect.any(Object), {
+        limit: 10,
+      });
+    });
+
+    it("should pass filter fields from DTO to repository", async () => {
+      // Arrange
+      (mockRepository as any).queryWithCursor = jest.fn().mockResolvedValue({
+        data: [],
+        hasMore: false,
+        limit: 20,
+      });
+
+      // Act
+      await service.queryWithCursor(
+        {
+          actorId: "user-1",
+          action: AuditActionType.UPDATE,
+          resourceType: "order",
+        },
+        { limit: 20 },
+      );
+
+      // Assert: filter fields were passed
+      expect((mockRepository as any).queryWithCursor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: "user-1",
+          action: AuditActionType.UPDATE,
+          resourceType: "order",
+        }),
+        { limit: 20 },
+      );
+    });
+
+    it("should throw when repository does not support queryWithCursor", async () => {
+      // Arrange: create a repo mock that explicitly lacks queryWithCursor
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { queryWithCursor: _omit, ...repoWithoutCursor } = createMockRepository();
+      const svc = new AuditService(
+        repoWithoutCursor as any,
+        mockIdGenerator,
+        mockTimestampProvider,
+      );
+
+      // Act & Assert
+      await expect(svc.queryWithCursor({})).rejects.toThrow("Cursor pagination is not supported");
+    });
+  });
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Observer - Observability Hooks
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  describe("observer hooks", () => {
+    it("should call observer.onEvent after a successful log()", async () => {
+      // Arrange
+      const onEvent = jest.fn();
+      const observerService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { observer: { onEvent } },
+      );
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      // Act
+      await observerService.log(validDto);
+
+      // Assert: observer was called with a success event
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ operation: "create", success: true }),
+      );
+    });
+
+    it("should call observer.onEvent with an error event when log() fails", async () => {
+      // Arrange
+      const onEvent = jest.fn();
+      const observerService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { observer: { onEvent } },
+      );
+      mockRepository.create.mockRejectedValue(new Error("DB error"));
+
+      // Act — log() swallows errors and returns success:false
+      const result = await observerService.log(validDto);
+
+      // Assert: result is failure
+      expect(result.success).toBe(false);
+
+      // Assert: observer was called with a fail event
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: "create",
+          success: false,
+          error: expect.any(Error),
+        }),
+      );
+    });
+
+    it("should not throw if observer.onEvent throws", async () => {
+      // Arrange: observer that always throws
+      const breakingObserver = {
+        onEvent: jest.fn().mockImplementation(() => {
+          throw new Error("observer error");
+        }),
+      };
+      const observerService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { observer: breakingObserver },
+      );
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      // Act & Assert: should not throw despite the observer error
+      await expect(observerService.log(validDto)).resolves.not.toThrow();
+    });
+  });
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Event Publisher - Event Streaming Hooks
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  describe("event publisher hooks", () => {
+    it("should publish audit.log.created after successful create", async () => {
+      // Arrange
+      const publish = jest.fn();
+      const eventService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { eventPublisher: { publish } },
+      );
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      // Act
+      await eventService.log(validDto);
+
+      // Assert
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "audit.log.created", payload: expectedAuditLog }),
+      );
+    });
+
+    it("should not throw if event publisher throws", async () => {
+      // Arrange
+      const eventPublisher = {
+        publish: jest.fn().mockImplementation(() => {
+          throw new Error("publisher error");
+        }),
+      };
+      const eventService = new AuditService(
+        mockRepository,
+        mockIdGenerator,
+        mockTimestampProvider,
+        mockChangeDetector,
+        { eventPublisher },
+      );
+      mockRepository.create.mockResolvedValue(expectedAuditLog);
+
+      // Act & Assert
+      await expect(eventService.log(validDto)).resolves.not.toThrow();
     });
   });
 });

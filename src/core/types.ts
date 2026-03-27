@@ -248,6 +248,9 @@ export interface AuditLog {
   /** Session ID (if applicable) */
   sessionId?: string;
 
+  /** Idempotency key for deduplicating repeated writes */
+  idempotencyKey?: string;
+
   // ─────────────────────────────────────────────────────────────────────────
   // COMPLIANCE - Justification
   // ─────────────────────────────────────────────────────────────────────────
@@ -302,6 +305,47 @@ export interface PageResult<T> {
 }
 
 /**
+ * Options for cursor-based pagination.
+ *
+ * Cursor pagination avoids the instability of offset-based pagination
+ * (e.g., skipped or duplicated items when records are added/removed mid-query).
+ * Results are always sorted by `timestamp DESC, id ASC`.
+ */
+export interface CursorPageOptions {
+  /**
+   * Opaque cursor string returned from the previous page's `nextCursor`.
+   * Omit to retrieve the first page.
+   */
+  cursor?: string;
+
+  /**
+   * Maximum number of items per page.
+   * @default 20
+   */
+  limit?: number;
+}
+
+/**
+ * Result of a cursor-based paginated query.
+ */
+export interface CursorPageResult<T> {
+  /** Items for the current page */
+  data: T[];
+
+  /**
+   * Opaque cursor for the next page.
+   * Absent when `hasMore` is false — do not pass to the next call.
+   */
+  nextCursor?: string;
+
+  /** Whether more items exist after this page */
+  hasMore: boolean;
+
+  /** Effective page size used for this result */
+  limit: number;
+}
+
+/**
  * Filter options for querying audit logs.
  *
  * All filters are optional - can be combined for complex queries.
@@ -339,6 +383,9 @@ export interface AuditLogFilters {
 
   /** Filter by session ID */
   sessionId?: string;
+
+  /** Filter by idempotency key */
+  idempotencyKey?: string;
 
   /** Free-text search across multiple fields */
   search?: string;
