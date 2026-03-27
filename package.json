@@ -58,6 +58,8 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.7",
+    "@nestjs/common": "^11.1.17",
+    "@nestjs/core": "^11.1.17",
     "@nestjs/testing": "^11.1.17",
     "@stryker-mutator/core": "^9.0.0",
     "@stryker-mutator/jest-runner": "^9.0.0",
@@ -73,6 +75,7 @@
     "mongoose": "^8.11.3",
     "nanoid": "^5.0.9",
     "prettier": "^3.4.2",
+    "reflect-metadata": "^0.2.2",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.5",
