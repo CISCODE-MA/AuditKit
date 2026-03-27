@@ -55,12 +55,8 @@ function validateRepository(options: AuditKitModuleOptions): void {
     throw new Error("AuditKitModule options must include a repository configuration");
   }
 
-  if (
-    options.repository.type === "mongodb" &&
-    !options.repository.uri &&
-    !options.repository.model
-  ) {
-    throw new Error("MongoDB repository requires either 'uri' or 'model' to be configured");
+  if (options.repository.type === "custom" && !options.repository.instance) {
+    throw new Error("Custom repository requires an 'instance' implementing IAuditLogRepository");
   }
 }
 

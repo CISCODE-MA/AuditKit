@@ -13,12 +13,11 @@
  */
 
 import type { ModuleMetadata, Type } from "@nestjs/common";
-import type { Model } from "mongoose";
 
 import type { IAuditEventPublisher } from "../core/ports/audit-event-publisher.port";
 import type { IAuditObserver } from "../core/ports/audit-observer.port";
+import type { IAuditLogRepository } from "../core/ports/audit-repository.port";
 import type { AuditLog } from "../core/types";
-import type { AuditLogDocument } from "../infra/repositories/mongodb/audit-log.schema";
 
 // eslint-disable-next-line no-unused-vars
 export type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
@@ -26,35 +25,6 @@ export type ArchiveHandler = (logs: AuditLog[]) => Promise<void> | void;
 // ============================================================================
 // REPOSITORY CONFIGURATION
 // ============================================================================
-
-/**
- * MongoDB repository configuration.
- */
-export interface MongoDbRepositoryConfig {
-  /**
-   * Repository type identifier.
-   */
-  type: "mongodb";
-
-  /**
-   * MongoDB connection URI.
-   * Required if not providing a model instance.
-   *
-   * @example 'mongodb://localhost:27017/auditdb'
-   */
-  uri?: string;
-
-  /**
-   * MongoDB database name.
-   */
-  database?: string;
-
-  /**
-   * Pre-configured Mongoose model for audit logs.
-   * If provided, uri and database are ignored.
-   */
-  model?: Model<AuditLogDocument>;
-}
 
 /**
  * In-memory repository configuration.
@@ -73,9 +43,27 @@ export interface InMemoryRepositoryConfig {
 }
 
 /**
+ * Custom repository configuration.
+ * Use this to bring your own IAuditLogRepository implementation
+ * (e.g. from a shared database package).
+ */
+export interface CustomRepositoryConfig {
+  /**
+   * Repository type identifier.
+   */
+  type: "custom";
+
+  /**
+   * Pre-built IAuditLogRepository instance.
+   * This is the repository that will be used to persist audit logs.
+   */
+  instance: IAuditLogRepository;
+}
+
+/**
  * Repository configuration union type.
  */
-export type RepositoryConfig = MongoDbRepositoryConfig | InMemoryRepositoryConfig;
+export type RepositoryConfig = InMemoryRepositoryConfig | CustomRepositoryConfig;
 
 // ============================================================================
 // UTILITY PROVIDER CONFIGURATION
@@ -204,18 +192,7 @@ export interface EventStreamingConfig {
 /**
  * Configuration options for AuditKitModule.
  *
- * @example Basic configuration with MongoDB
- * ```typescript
- * AuditKitModule.register({
- *   repository: {
- *     type: 'mongodb',
- *     uri: 'mongodb://localhost:27017/auditdb',
- *     database: 'auditdb'
- *   }
- * })
- * ```
- *
- * @example Configuration with in-memory repository
+ * @example With in-memory repository (testing)
  * ```typescript
  * AuditKitModule.register({
  *   repository: {
@@ -224,12 +201,22 @@ export interface EventStreamingConfig {
  * })
  * ```
  *
+ * @example With a custom repository (e.g. from a shared database package)
+ * ```typescript
+ * AuditKitModule.register({
+ *   repository: {
+ *     type: 'custom',
+ *     instance: new MyAuditRepository(dbConnection)
+ *   }
+ * })
+ * ```
+ *
  * @example Full configuration with custom providers
  * ```typescript
  * AuditKitModule.register({
  *   repository: {
- *     type: 'mongodb',
- *     uri: process.env.MONGO_URI
+ *     type: 'custom',
+ *     instance: myRepository
  *   },
  *   idGenerator: {
  *     type: 'nanoid',

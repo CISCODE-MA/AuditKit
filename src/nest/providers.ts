@@ -14,8 +14,6 @@
  */
 
 import type { Provider } from "@nestjs/common";
-import type { ConnectOptions } from "mongoose";
-import { connect } from "mongoose";
 
 import { AuditService } from "../core/audit.service";
 import type { IAuditLogRepository } from "../core/ports/audit-repository.port";
@@ -27,8 +25,6 @@ import { EventEmitterAuditEventPublisher } from "../infra/providers/events/event
 import { NanoidIdGenerator } from "../infra/providers/id-generator/nanoid-id-generator";
 import { SystemTimestampProvider } from "../infra/providers/timestamp/system-timestamp-provider";
 import { InMemoryAuditRepository } from "../infra/repositories/in-memory/in-memory-audit.repository";
-import { AuditLogSchema } from "../infra/repositories/mongodb/audit-log.schema";
-import { MongoAuditRepository } from "../infra/repositories/mongodb/mongo-audit.repository";
 
 import {
   AUDIT_KIT_OPTIONS,
@@ -56,7 +52,7 @@ import {
  * 2. ID_GENERATOR - ID generation implementation
  * 3. TIMESTAMP_PROVIDER - Timestamp provider implementation
  * 4. CHANGE_DETECTOR - Change detection implementation
- * 5. AUDIT_REPOSITORY - Repository implementation (MongoDB or In-Memory)
+ * 5. AUDIT_REPOSITORY - Repository implementation (In-Memory or Custom)
  * 6. AuditService - Core service (depends on all above)
  *
  * @param options - Module configuration options
@@ -149,29 +145,8 @@ export function createAuditKitProviders(options: AuditKitModuleOptions): Provide
         const config = options.repository;
 
         switch (config.type) {
-          case "mongodb": {
-            // If a model is provided, use it directly
-            if (config.model) {
-              return new MongoAuditRepository(config.model, getArchiveHandler(options));
-            }
-
-            // Otherwise, create a connection and model
-            if (!config.uri) {
-              throw new Error(
-                "MongoDB repository requires either 'uri' or 'model' to be configured",
-              );
-            }
-
-            const connectionOptions: Partial<ConnectOptions> = {};
-            if (config.database !== undefined) {
-              connectionOptions.dbName = config.database;
-            }
-
-            const connection = await connect(config.uri, connectionOptions as ConnectOptions);
-
-            const model = connection.model("AuditLog", AuditLogSchema);
-            return new MongoAuditRepository(model, getArchiveHandler(options));
-          }
+          case "custom":
+            return config.instance;
 
           case "in-memory":
           default:
