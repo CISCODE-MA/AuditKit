@@ -114,17 +114,23 @@ describe("AuditKitModule", () => {
       expect(service).toBeInstanceOf(AuditService);
     });
 
-    it("should configure with MongoDB repository", async () => {
-      const mockModel = {
-        findOne: jest.fn(),
+    it("should configure with a custom repository", async () => {
+      const mockRepository = {
+        create: jest.fn(),
+        findById: jest.fn(),
+        findByActor: jest.fn(),
+        findByResource: jest.fn(),
+        query: jest.fn(),
+        count: jest.fn(),
+        exists: jest.fn(),
       };
 
       const module: TestingModule = await Test.createTestingModule({
         imports: [
           AuditKitModule.register({
             repository: {
-              type: "mongodb",
-              model: mockModel as any,
+              type: "custom",
+              instance: mockRepository as any,
             },
           }),
         ],
@@ -474,14 +480,14 @@ describe("AuditKitModule", () => {
       expect(service).toBeDefined();
     });
 
-    it("should throw for mongodb config without uri or model", async () => {
+    it("should throw for custom config without instance", async () => {
       expect(() =>
         AuditKitModule.register({
           repository: {
-            type: "mongodb",
-          },
+            type: "custom",
+          } as any,
         }),
-      ).toThrow("MongoDB repository requires either 'uri' or 'model' to be configured");
+      ).toThrow("Custom repository requires an 'instance' implementing IAuditLogRepository");
     });
 
     it("should throw for invalid retention days", async () => {
