@@ -61,7 +61,7 @@
     "@nestjs/core": "^11.1.17",
     "@nestjs/testing": "^11.1.17",
     "@stryker-mutator/core": "^9.0.0",
-    "@stryker-mutator/jest-runner": "^9.0.0",
+    "@stryker-mutator/jest-runner": "^9.6.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.7",
     "date-fns": "^4.1.0",
