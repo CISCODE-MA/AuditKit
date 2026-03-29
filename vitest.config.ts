@@ -16,5 +16,9 @@ export default defineConfig({
     },
     globals: true,
     watch: false,
+    benchmark: {
+      include: ["benchmarks/**/*.bench.ts"],
+      exclude: ["**/node_modules/**"],
+    },
   },
 });

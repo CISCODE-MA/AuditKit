@@ -7,6 +7,7 @@ const config: Config = {
   transform: {
     "^.+\\.ts$": ["ts-jest", { tsconfig: "tsconfig.json" }],
   },
+  transformIgnorePatterns: ["node_modules/(?!(nanoid)/)"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts", "!src/**/index.ts"],
   coverageDirectory: "coverage",
 };
