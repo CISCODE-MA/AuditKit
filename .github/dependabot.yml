@@ -10,7 +10,7 @@ updates:
         patterns:
           - "*"
     assignees:
-      - CISCODE-MA/cloud-devops
+      - CISCODE-MA/devops
     labels:
       - "dependencies"
       - "npm"
