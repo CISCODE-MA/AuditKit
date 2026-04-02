@@ -18,6 +18,26 @@ Changesets controls versions and changelog via a “Version Packages” PR.
 3. If it affects users, run: `npx changeset`
 4. Open PR → `develop`
 
+## Quality Gates (before PR)
+
+Run locally before opening a PR:
+
+1. `npm run typecheck`
+2. `npm run lint`
+3. `npm test`
+4. Optional advanced checks:
+   - `npm run mutation`
+   - `npm run bench`
+
+## CI Compatibility Matrix
+
+PR validation runs across:
+
+- Node.js 20 and 22
+- Ubuntu and Windows runners
+
+This matrix helps detect runtime and tooling regressions before merge.
+
 ## Release
 
 1. Automation opens “Version Packages” PR from `develop` → `master`
